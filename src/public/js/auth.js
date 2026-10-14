@@ -67,7 +67,7 @@ if (loginForm) {
             );
 
             setTimeout(() => {
-                window.location.href = '/index.html';
+             window.location.href = '/inicio.html';
             }, 800);
 
         } catch (error) {

@@ -3,74 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Entre Libros - Iniciar sesión</title>
-
-    <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="/css/auth.css">
+    <link rel="stylesheet" href="/css/app.css">
 </head>
+<body>
+<div class="app">
 
-<body class="auth-page">
-
-    <header class="navbar">
-        <a href="/" class="logo">Entre Libros</a>
-
-        <nav>
-            <a href="/index.html">Inicio</a>
-            <a href="/register.html">Registrarse</a>
-        </nav>
+    <header class="topbar">
+        <a href="/" class="brand">
+            <span class="mark">EL</span>
+            <span><b>Entre Libros</b><small>Librería &amp; Catálogo</small></span>
+        </a>
+        <div class="top-right"><span class="badge">Mi Cuenta</span></div>
     </header>
 
-    <main class="auth-container">
+    <section class="hero-img">
+        <h1>Bienvenido a su biblioteca</h1>
+        <p>Acceda al catálogo digital, reservas y gestión editorial.</p>
+    </section>
 
-        <h1>Iniciar sesión</h1>
+    <div class="tabs">
+        <a href="/login.html" class="on">Iniciar Sesión</a>
+        <a href="/register.html">Registrarse</a>
+    </div>
 
-        <p class="auth-subtitle">
-            Ingresa a tu cuenta de Entre Libros
-        </p>
+    <div class="notice"><strong>Aviso de Seguridad:</strong> Cierre automático de sesión tras 10 minutos de inactividad.</div>
 
-        <form id="login-form" class="auth-form">
-
-            <label for="correo">
-                Correo electrónico
-            </label>
-
-            <input
-                type="email"
-                id="correo"
-                name="correo"
-                placeholder="correo@ejemplo.com"
-                required
-            >
-
-            <label for="contraseña">
-                Contraseña
-            </label>
-
-            <input
-                type="password"
-                id="contraseña"
-                name="contraseña"
-                placeholder="Ingresa tu contraseña"
-                required
-            >
-
-            <button type="submit" class="auth-button">
-                Iniciar sesión
-            </button>
-
-        </form>
-
-        <p id="auth-message" class="auth-message"></p>
-
-        <div class="auth-link">
-            ¿No tienes una cuenta?
-            <a href="/register.html">Regístrate aquí</a>
+    <form id="login-form" class="card">
+        <label for="correo">Correo Electrónico <small>Requerido</small></label>
+        <div class="field">
+            <i>✉️</i>
+            <input type="email" id="correo" name="correo" placeholder="ejemplo@entrelibros.com" required>
         </div>
 
-    </main>
+        <label for="contraseña">Contraseña <a href="/recuperar.html" class="forgot">¿Olvidaste tu contraseña?</a></label>
+        <div class="field">
+            <i>🔒</i>
+            <input type="password" id="contraseña" name="contraseña" placeholder="••••••••" required>
+            <button type="button" class="eye" onclick="verClave('contraseña')" aria-label="Mostrar contraseña">👁️</button>
+        </div>
 
-    <script src="/js/auth.js"></script>
-    <script src="/js/session.js"></script>
+        <p id="auth-message" class="msg"></p>
+        <button type="submit" class="btn block">Iniciar Sesión →</button>
+    </form>
+
+    <p class="alt">¿No tienes una cuenta? <a href="/register.html"><b>Regístrate aquí</b></a></p>
+
+</div>
+
+<script>
+function verClave(id){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';}
+</script>
+<script src="/js/auth.js"></script>
+<script src="/js/session.js"></script>
+<script>
+if (new URLSearchParams(location.search).get('expirada')) {
+    document.getElementById('auth-message').textContent =
+        'Tu sesión se cerró por inactividad. Inicia sesión de nuevo.';
+}
+</script>
 </body>
 </html>

@@ -19,7 +19,8 @@ exports.getSummary = async (req, res) => {
     // 3. Obtener préstamos
     const { count: activeLoans, error: loansError } = await supabase
       .from('prestamos')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .eq('estado', 'PRESTADO');
 
     if (loansError) throw loansError;
 

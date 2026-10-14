@@ -3,98 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Entre Libros - Registro</title>
-
-    <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="/css/auth.css">
+    <link rel="stylesheet" href="/css/app.css">
 </head>
+<body>
+<div class="app">
 
-<body class="auth-page">
-
-    <header class="navbar">
-        <a href="/" class="logo">Entre Libros</a>
-
-        <nav>
-            <a href="/index.html">Inicio</a>
-            <a href="/login.html">Iniciar sesión</a>
-        </nav>
+    <header class="topbar">
+        <a href="/" class="brand">
+            <span class="mark">EL</span>
+            <span><b>Entre Libros</b><small>Librería &amp; Catálogo</small></span>
+        </a>
+        <div class="top-right"><span class="badge">Mi Cuenta</span></div>
     </header>
 
-    <main class="auth-container">
+    <section class="hero-img">
+        <h1>Bienvenido a su biblioteca</h1>
+        <p>Acceda al catálogo digital, reservas y gestión editorial.</p>
+    </section>
 
-        <h1>Crear cuenta</h1>
+    <div class="tabs">
+        <a href="/login.html">Iniciar Sesión</a>
+        <a href="/register.html" class="on">Registrarse</a>
+    </div>
 
-        <p class="auth-subtitle">
-            Regístrate para usar Entre Libros
-        </p>
+    <div class="notice"><strong>Aviso de Seguridad:</strong> Cierre automático de sesión tras 10 minutos de inactividad.</div>
 
-        <form id="register-form" class="auth-form">
-
-            <label for="nombre">
-                Nombre
-            </label>
-
-            <input
-                type="text"
-                id="nombre"
-                name="nombre"
-                placeholder="Tu nombre"
-                required
-            >
-
-            <label for="apellido">
-                Apellido
-            </label>
-
-            <input
-                type="text"
-                id="apellido"
-                name="apellido"
-                placeholder="Tu apellido"
-                required
-            >
-
-            <label for="correo">
-                Correo electrónico
-            </label>
-
-            <input
-                type="email"
-                id="correo"
-                name="correo"
-                placeholder="correo@ejemplo.com"
-                required
-            >
-
-            <label for="contraseña">
-                Contraseña
-            </label>
-
-            <input
-                type="password"
-                id="contraseña"
-                name="contraseña"
-                placeholder="Crea una contraseña"
-                required
-            >
-
-            <button type="submit" class="auth-button">
-                Registrarse
-            </button>
-
-        </form>
-
-        <p id="auth-message" class="auth-message"></p>
-
-        <div class="auth-link">
-            ¿Ya tienes una cuenta?
-            <a href="/login.html">Inicia sesión aquí</a>
+    <form id="register-form" class="card">
+        <label for="nombre">Nombre</label>
+        <div class="field"><i>🪪</i>
+            <input type="text" id="nombre" name="nombre" placeholder="Ej: Marcela" required>
         </div>
 
-    </main>
+        <label for="apellido">Apellido</label>
+        <div class="field"><i>🪪</i>
+            <input type="text" id="apellido" name="apellido" placeholder="Ej: Proust" required>
+        </div>
+
+        <label for="correo">Correo Electrónico</label>
+        <div class="field"><i>@</i>
+            <input type="email" id="correo" name="correo" placeholder="ejemplo@lector.com" required>
+        </div>
+
+        <label for="contraseña">Contraseña</label>
+        <div class="field"><i>🔒</i>
+            <input type="password" id="contraseña" name="contraseña" placeholder="Crea una contraseña" required>
+            <button type="button" class="eye" onclick="verClave('contraseña')" aria-label="Mostrar contraseña">👁️</button>
+        </div>
+
+        <label for="confirmar">Confirmar Contraseña</label>
+        <div class="field"><i>🛡️</i>
+            <input type="password" id="confirmar" placeholder="Repita la contraseña" required>
+        </div>
+
+        <p id="auth-message" class="msg"></p>
+        <button type="submit" class="btn block">Aceptar y Registrar</button>
+    </form>
+
+    <p class="alt">¿Ya tienes una cuenta? <a href="/login.html"><b>Inicia sesión aquí</b></a></p>
+
+</div>
+
+<script>
+function verClave(id){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';}
+// Bloquea el envío si las contraseñas no coinciden (se ejecuta antes que auth.js)
+document.getElementById('register-form').addEventListener('submit',function(e){
+  if(document.getElementById('contraseña').value!==document.getElementById('confirmar').value){
+    e.stopImmediatePropagation();e.preventDefault();
+    document.getElementById('auth-message').textContent='Las contraseñas no coinciden.';
+  }
+},true);
+</script>
 <script src="/js/auth.js"></script>
 <script src="/js/session.js"></script>
-    
 </body>
 </html>

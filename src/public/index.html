@@ -3,24 +3,43 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Entre Libros - Inicio</title>
-  <link rel="stylesheet" href="/css/styles.css">
+  <title>Entre Libros - Bienvenido</title>
+  <link rel="icon" href="/img/logo.png">
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body{background:var(--navy);min-height:100vh;display:flex;flex-direction:column}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem 1.5rem;background:var(--navy);border-bottom:4px solid var(--sky)}
+    .top .logo{display:flex;align-items:center;gap:.7rem;text-decoration:none;color:#fff;font:700 1.25rem 'Merriweather',serif}
+    .top .logo img{width:46px;height:46px;border-radius:12px;background:#fff;padding:2px}
+    .top nav{display:flex;align-items:center;gap:.5rem}
+    .top nav a{color:#fff;text-decoration:none;font-weight:500;padding:.45rem .9rem;border-radius:999px}
+    .top nav a:hover{background:rgba(255,255,255,.15)}
+    .top nav a.login{background:var(--sky);color:var(--navy);font-weight:700;padding:.55rem 1.2rem}
+    .top nav a.login:hover{background:#fff}
+
+    .hero-home{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;padding:3rem 1.5rem;background:radial-gradient(circle at 15% 20%,rgba(158,208,255,.35),transparent 40%),radial-gradient(circle at 85% 80%,rgba(245,165,36,.45),transparent 40%),linear-gradient(135deg,var(--navy),#1B3B6F 60%,#127d8a)}
+    .hero-home img{width:140px;height:140px;border-radius:30px;background:#fff;padding:4px;box-shadow:0 10px 30px rgba(0,0,0,.3);margin-bottom:1.8rem}
+    .hero-home h1{color:#fff;font-size:clamp(2.2rem,6vw,3.8rem);line-height:1.15;margin:0 auto 1rem;max-width:18ch}
+    .hero-home p{max-width:52ch;margin:0 auto;font-size:1.15rem;color:#DCE8F7}
+
+    @media (max-width:520px){.top{padding:.6rem 1rem}.top .logo span{display:none}}
+  </style>
 </head>
 <body>
-  <header class="navbar">
-    <a href="/" class="logo">Entre Libros</a>
+
+  <header class="top">
+    <a href="/" class="logo"><img src="/img/logo.png" alt="Logo Entre Libros"><span>Entre Libros</span></a>
     <nav>
       <a href="/index.html">Inicio</a>
-      <a href="/reports.html">Reportes</a>
+      <a href="/login.html" class="login">Iniciar sesión</a>
     </nav>
   </header>
 
-  <main style="padding: 3rem 2rem; text-align: center; max-width: 800px; margin: 0 auto;">
+  <section class="hero-home">
+    <img src="/img/logo.png" alt="Entre Libros">
     <h1>Organizando historias, conectando lectores</h1>
-    <p style="margin-top: 1rem; font-size: 1.1rem; color: #555;">
-      Bienvenido al sistema de gestión bibliotecaria Entre Libros.
-    </p>
-  </main>
-   <script src="/js/session.js"></script>
+    <p>Te damos la bienvenida a Entre Libros. Explora el catálogo, pide tus libros prestados y lleva el control de tu biblioteca en un solo lugar.</p>
+  </section>
+
 </body>
 </html>

@@ -2,7 +2,7 @@
 // Control de sesión - Entre Libros
 // =========================================
 
-const TIEMPO_INACTIVIDAD = 10 * 60 * 1000;
+const TIEMPO_INACTIVIDAD = 10 * 60* 1000;
 
 let temporizadorInactividad = null;
 

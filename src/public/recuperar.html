@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entre Libros - Recuperar contraseña</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a href="/" class="brand">
+      <span class="mark">EL</span>
+      <span><b>Entre Libros</b><small>Librería &amp; Catálogo</small></span>
+    </a>
+  </header>
+
+  <a href="/login.html" class="backlink">← Volver al Inicio de Sesión</a><br>
+  <span class="tag">Seguridad de la Cuenta</span>
+  <h1>Recuperación de Contraseña</h1>
+  <p class="lead">Ingrese su correo electrónico y el código de verificación para restablecer el acceso a su cuenta.</p>
+
+  <div class="notice warn"><strong>Aviso de Seguridad:</strong><br>El enlace y código de recuperación tienen una validez de 15 minutos.</div>
+
+  <form id="reset-form" class="card">
+
+    <div class="step">PASO 1: CORREO ELECTRÓNICO REGISTRADO * <button type="button" class="link" id="btnEnviar">Enviar código</button></div>
+    <div class="field"><i>✉️</i>
+      <input type="email" id="correo" placeholder="lector@biblioteca.com" required>
+    </div>
+
+    <div class="step">PASO 2: CÓDIGO DE VERIFICACIÓN (OTP) * <small>6 dígitos</small></div>
+    <div class="otp" id="otp">
+      <input inputmode="numeric" maxlength="1" aria-label="Dígito 1">
+      <input inputmode="numeric" maxlength="1" aria-label="Dígito 2">
+      <input inputmode="numeric" maxlength="1" aria-label="Dígito 3">
+      <input inputmode="numeric" maxlength="1" aria-label="Dígito 4">
+      <input inputmode="numeric" maxlength="1" aria-label="Dígito 5">
+      <input inputmode="numeric" maxlength="1" aria-label="Dígito 6">
+    </div>
+
+    <div class="step">PASO 3: NUEVA CONTRASEÑA *</div>
+    <div class="field"><i>🔒</i>
+      <input type="password" id="nueva" placeholder="Nueva contraseña" required>
+      <button type="button" class="eye" onclick="ver('nueva')" aria-label="Mostrar contraseña">👁️</button>
+    </div>
+    <div class="strength">
+      <div class="row"><span>Nivel de seguridad:</span><b id="nivel">—</b></div>
+      <div class="bar"><span id="barra"></span></div>
+      <div class="checks">
+        <span id="c-len">○ Mínimo 8 car.</span>
+        <span id="c-may">○ Mayúscula</span>
+        <span id="c-num">○ Número</span>
+      </div>
+    </div>
+
+    <div class="step">PASO 4: CONFIRMAR NUEVA CONTRASEÑA *</div>
+    <div class="field"><i>🛡️</i>
+      <input type="password" id="confirmar" placeholder="Repita la contraseña" required>
+      <span class="tick" id="tick">✔</span>
+      <button type="button" class="eye" onclick="ver('confirmar')" aria-label="Mostrar contraseña">👁️</button>
+    </div>
+
+    <p id="msg" class="msg"></p>
+    <button type="submit" class="btn block">🔑 Actualizar Contraseña e Iniciar Sesión</button>
+    <a href="/login.html" class="btn ghost block" style="margin-top:.6rem;padding:.8rem">← Regresar a Iniciar Sesión</a>
+  </form>
+
+  <p class="foot">¿No recibiste el código? <b id="reenviar">Reenviar código en 02:00</b> o contacta a <a href="mailto:soporte@entrelibros.com">soporte@entrelibros.com</a></p>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const msg = (t, ok) => { $('msg').textContent = t; $('msg').style.color = ok ? 'var(--teal)' : 'var(--coral)'; };
+function ver(id){ const i=$(id); i.type = i.type==='password' ? 'text' : 'password'; }
+
+/* Casillas del código: avanzar, retroceder y pegar */
+const cajas = [...document.querySelectorAll('#otp input')];
+cajas.forEach((c, i) => {
+  c.addEventListener('input', () => {
+    c.value = c.value.replace(/\D/g, '');
+    if (c.value && cajas[i+1]) cajas[i+1].focus();
+  });
+  c.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !c.value && cajas[i-1]) cajas[i-1].focus();
+  });
+  c.addEventListener('paste', e => {
+    const t = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+    if (!t) return;
+    e.preventDefault();
+    t.split('').forEach((d, k) => cajas[k].value = d);
+    cajas[Math.min(t.length, 5)].focus();
+  });
+});
+const codigo = () => cajas.map(c => c.value).join('');
+
+/* Nivel de seguridad */
+function evaluar(){
+  const v = $('nueva').value;
+  const r = { len: v.length >= 8, may: /[A-Z]/.test(v), num: /\d/.test(v) };
+  [['len','Mínimo 8 car.'],['may','Mayúscula'],['num','Número']].forEach(([k, t]) => {
+    const el = $('c-' + k);
+    el.textContent = (r[k] ? '✔ ' : '○ ') + t;
+    el.className = r[k] ? 'ok-c' : '';
+  });
+  const n = Object.values(r).filter(Boolean).length;
+  const niveles = ['—', 'Débil', 'Media', 'Segura y Óptima'];
+  const colores = ['#D9D5C6', '#E5533D', '#F5A524', '#0E9F6E'];
+  $('nivel').textContent = niveles[n];
+  $('barra').style.width = (n / 3 * 100) + '%';
+  $('barra').style.background = colores[n];
+  coincide();
+  return n === 3;
+}
+function coincide(){
+  $('tick').classList.toggle('show', $('confirmar').value && $('confirmar').value === $('nueva').value);
+}
+$('nueva').addEventListener('input', evaluar);
+$('confirmar').addEventListener('input', coincide);
+
+/* Cuenta regresiva para reenviar */
+let seg = 120, timer;
+function iniciarConteo(){
+  clearInterval(timer); seg = 120;
+  timer = setInterval(() => {
+    seg--;
+    const m = String(Math.floor(seg/60)).padStart(2,'0'), s = String(seg%60).padStart(2,'0');
+    $('reenviar').textContent = seg > 0 ? `Reenviar código en ${m}:${s}` : 'Reenviar código ahora';
+    $('reenviar').style.cursor = seg > 0 ? 'default' : 'pointer';
+    if (seg <= 0) clearInterval(timer);
+  }, 1000);
+}
+iniciarConteo();
+
+/* Enviar código (requiere ruta en el servidor) */
+async function enviarCodigo(){
+  if (!$('correo').value) return msg('Escribe tu correo primero.');
+  try {
+    const res = await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ correo: $('correo').value })
+    });
+    if (res.status === 404) return msg('El servidor aún no tiene activada la recuperación de contraseña.');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return msg(data.error || data.message || 'No se pudo enviar el código.');
+    msg('Te enviamos un código a tu correo.', true);
+    iniciarConteo();
+  } catch (e) { msg('No se pudo conectar con el servidor.'); }
+}
+$('btnEnviar').addEventListener('click', enviarCodigo);
+$('reenviar').addEventListener('click', () => { if (seg <= 0) enviarCodigo(); });
+
+/* Actualizar contraseña (requiere ruta en el servidor) */
+$('reset-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (codigo().length !== 6) return msg('Completa los 6 dígitos del código.');
+  if (!evaluar()) return msg('La contraseña debe tener 8 caracteres, una mayúscula y un número.');
+  if ($('nueva').value !== $('confirmar').value) return msg('Las contraseñas no coinciden.');
+  try {
+    const res = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ correo: $('correo').value, codigo: codigo(), nueva_contraseña: $('nueva').value })
+    });
+    if (res.status === 404) return msg('El servidor aún no tiene activada la recuperación de contraseña.');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return msg(data.error || data.message || 'Código inválido o vencido.');
+    msg('Contraseña actualizada. Redirigiendo...', true);
+    setTimeout(() => location.href = '/login.html', 1500);
+  } catch (err) { msg('No se pudo conectar con el servidor.'); }
+});
+</script>
+</body>
+</html>

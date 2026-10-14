@@ -1,12 +1,10 @@
 const supabase = require('../config/supabase');
 
-// Bloque de codigo para obtener y filtrar libros
 const getBooks = async (req, res) => {
   try {
     const { titulo, autor, categoria } = req.query;
     let query = supabase.from('libros').select('*');
 
-    // Solo aplicamos filtro si realmente enviaron un texto válido
     if (titulo && titulo.trim() !== '') {
       query = query.ilike('titulo', `%${titulo.trim()}%`);
     }

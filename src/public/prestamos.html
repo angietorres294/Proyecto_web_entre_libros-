@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mis Préstamos - Entre Libros</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a href="/inicio.html" class="brand">
+      <span class="mark">EL</span>
+      <span><b>Entre Libros</b><small>Mis Préstamos</small></span>
+    </a>
+    <div class="top-right"><span class="badge">Lector</span><a href="/inicio.html" class="avatar">👤</a></div>
+  </header>
+
+  <div class="pagehead">
+    <div><h1>Mis Préstamos</h1><p>Libros que tienes en tu poder y tu historial</p></div>
+  </div>
+
+  <p id="msg" class="msg"></p>
+  <div id="lista"><p class="empty">Cargando...</p></div>
+</div>
+
+<nav class="bottom">
+  <a href="/catalogo.html"><span>📖</span>Explorar</a>
+  <a href="/prestamos.html" class="on"><span>🔖</span>Préstamos</a>
+  <a href="/books.html"><span>🗃️</span>Inventario</a>
+  <a href="/inicio.html"><span>⚙️</span>Perfil</a>
+</nav>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const token = sessionStorage.getItem('authToken');
+const fmt = f => f ? new Date(f).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const H = { Authorization: 'Bearer ' + token };
+
+if (!token) location.href = '/login.html';
+
+async function cargar() {
+  try {
+    const r = await fetch('/api/loans/mine', { headers: H });
+    if (r.status === 401) { location.href = '/login.html'; return; }
+    const ps = await r.json();
+    if (!Array.isArray(ps) || !ps.length) {
+      $('lista').innerHTML = '<p class="empty">Aún no tienes préstamos. Explora el catálogo y solicita tu primer libro.</p>';
+      return;
+    }
+    const activos = ps.filter(p => p.estado === 'activo');
+    const historial = ps.filter(p => p.estado !== 'activo');
+    $('lista').innerHTML =
+      (activos.length ? '<h2 style="font-size:1.05rem;margin-bottom:.6rem">Activos</h2>' + activos.map(tarjeta).join('') : '') +
+      (historial.length ? '<h2 style="font-size:1.05rem;margin:1rem 0 .6rem">Historial</h2>' + historial.map(tarjeta).join('') : '');
+  } catch (e) {
+    $('lista').innerHTML = '<p class="empty">No se pudieron cargar tus préstamos.</p>';
+  }
+}
+
+function tarjeta(p) {
+  const activo = p.estado === 'activo';
+  const pill = !activo ? '<span class="pill">✔ Devuelto</span>'
+             : p.vencido ? '<span class="pill off">● Vencido</span>'
+             : '<span class="pill">● En préstamo</span>';
+  return `
+  <article class="book">
+    <div class="book-top">
+      <div class="cover">📕</div>
+      <div class="book-info">
+        <h2>${esc(p.titulo)}</h2>
+        <p>${esc(p.autor)}</p>
+        <p>Solicitado: ${fmt(p.fecha_prestamo)}</p>
+        <p>${activo ? 'Devolver antes del' : 'Devuelto el'}: <b>${fmt(activo ? p.fecha_limite : p.fecha_devolucion)}</b></p>
+      </div>
+    </div>
+    <div class="meta">${pill}
+      ${activo ? `<button class="btn sm" onclick="devolver(${p.id}, this)">↩ Devolver libro</button>` : ''}
+    </div>
+  </article>`;
+}
+
+async function devolver(id, btn) {
+  if (!confirm('¿Confirmas que devolviste este libro?')) return;
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/loans/${id}/return`, { method: 'PATCH', headers: H });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { $('msg').textContent = d.error || 'No se pudo devolver el libro.'; btn.disabled = false; return; }
+    $('msg').textContent = '';
+    cargar();
+  } catch (e) {
+    $('msg').textContent = 'No se pudo conectar con el servidor.';
+    btn.disabled = false;
+  }
+}
+
+cargar();
+</script>
+<script src="/js/roles.js"></script>
+<script src="/js/session.js"></script>
+</html>

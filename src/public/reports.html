@@ -5,19 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Entre Libros - Módulo de Reportes</title>
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/theme.css">
 </head>
 <body>
-  <header class="navbar">
-    <a href="/" class="logo">Entre Libros</a>
-    <nav>
-      <a href="/index.html">Inicio</a>
-      <a href="/reports.html">Reportes</a>
-    </nav>
+    <header class="navbar">
+    <a href="/inicio.html" class="logo">Entre Libros</a>
   </header>
+  <main class="page">
+    <section class="hero">
+      <h2>Dashboard de Reportes y Estadísticas</h2>
+      <p>Resumen del catálogo, los usuarios y los préstamos de la biblioteca.</p>
+    </section>
 
-  <main style="padding: 2rem; max-width: 1200px; margin: 0 auto;">
-    <h2>Dashboard de Reportes y Estadísticas</h2>
-    
     <div class="card-grid">
       <div class="card">
         <h3>Libros Registrados</h3>
@@ -34,6 +33,9 @@
     </div>
   </main>
 
-  <script src="/js/reports.js"></script>
-</body>
+</script>
+<script src="/js/roles.js"></script>
+<script src="/js/session.js"></script>
+<script src="/js/reports.js"></script>
+</body data-acceso="Admin">
 </html>

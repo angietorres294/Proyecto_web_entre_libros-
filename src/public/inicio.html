@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entre Libros - Mi espacio</title>
+  <link rel="icon" href="/img/logo.png">
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body{background:var(--cream)}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem 1.5rem;background:var(--navy);border-bottom:4px solid var(--sky)}
+    .top .logo{display:flex;align-items:center;gap:.7rem;text-decoration:none;color:#fff;font:700 1.25rem 'Merriweather',serif}
+    .top .logo img{width:46px;height:46px;border-radius:12px;background:#fff;padding:2px}
+    .top button{background:var(--sky);color:var(--navy);font-weight:700;padding:.55rem 1.2rem;border-radius:999px}
+    .top button:hover{background:#fff}
+
+    .welcome{text-align:center;color:#fff;padding:3rem 1.5rem 4.5rem;background:radial-gradient(circle at 15% 20%,rgba(158,208,255,.35),transparent 40%),radial-gradient(circle at 85% 80%,rgba(245,165,36,.45),transparent 40%),linear-gradient(135deg,var(--navy),#1B3B6F 60%,#127d8a)}
+    .welcome img{width:110px;height:110px;border-radius:26px;background:#fff;padding:4px;box-shadow:0 10px 30px rgba(0,0,0,.3);margin-bottom:1.2rem}
+    .welcome h1{color:#fff;font-size:clamp(1.8rem,5vw,3rem);margin:0 0 .6rem}
+    .welcome p{max-width:54ch;margin:0 auto;font-size:1.1rem;color:#DCE8F7}
+
+    .options{max-width:1000px;margin:-2.5rem auto 0;padding:0 1.5rem 3rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem}
+    .opt{display:block;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--line);border-top:6px solid var(--sky);border-radius:18px;padding:1.4rem;box-shadow:0 8px 24px rgba(15,37,64,.08);transition:transform .15s}
+    .opt:hover{transform:translateY(-3px)}
+    .opt .ic{font-size:2rem}
+    .opt h2{font-size:1.1rem;margin:.6rem 0 .3rem}
+    .opt p{margin:0;font-size:.9rem;color:#4A5B70}
+    .opt.c2{border-top-color:var(--teal)}
+    .opt.c3{border-top-color:#F5A524}
+    .opt.c4{border-top-color:#E5533D}
+    .opt.c5{border-top-color:var(--blue)}
+    .opt[hidden]{display:none}
+
+    @media (max-width:520px){.top{padding:.6rem 1rem}.top .logo span{display:none}}
+    @media (prefers-reduced-motion:reduce){.opt{transition:none}}
+  </style>
+</head>
+<body>
+
+  <header class="top">
+    <a href="/inicio.html" class="logo"><img src="/img/logo.png" alt="Logo Entre Libros"><span>Entre Libros</span></a>
+    <button id="btnSalir">Cerrar sesión</button>
+  </header>
+
+  <section class="welcome">
+    <img src="/img/logo.png" alt="Entre Libros">
+    <h1 id="saludo">¡Bienvenido!</h1>
+    <p>Aquí encontrarás los diferentes espacios en los que podemos interactuar. Elige una opción para comenzar.</p>
+  </section>
+
+    <section class="options">
+    <!-- Lectores -->
+    <a href="/catalogo.html" class="opt" data-rol="lector">
+      <div class="ic">📚</div>
+      <h2>Explorar catálogo</h2>
+      <p>Busca por título, autor o temática y mira qué libros están disponibles.</p>
+    </a>
+    <a href="/prestamos.html" class="opt c2" data-rol="lector">
+      <div class="ic">🔖</div>
+      <h2>Mis préstamos</h2>
+      <p>Consulta tus libros prestados, sus fechas de devolución y devuélvelos.</p>
+    </a>
+
+    <!-- Administradores -->
+    <a href="/books.html" class="opt c3" data-rol="admin" hidden>
+      <div class="ic">🗃️</div>
+      <h2>Administración de libros</h2>
+      <p>Consulta el inventario, busca libros e inactívalos.</p>
+    </a>
+    <a href="/libro.html" class="opt c2" data-rol="admin" hidden>
+      <div class="ic">📝</div>
+      <h2>Registro de libro</h2>
+      <p>Agrega un libro nuevo al catálogo de la biblioteca.</p>
+    </a>
+    <a href="/books.html" class="opt c5" data-rol="admin" hidden>
+      <div class="ic">✏️</div>
+      <h2>Modificar libro</h2>
+      <p>Elige un libro de la lista y pulsa el lápiz para editar sus datos.</p>
+    </a>
+    <a href="/reports.html" class="opt c4" data-rol="admin" hidden>
+      <div class="ic">📊</div>
+      <h2>Reportes</h2>
+      <p>Revisa las estadísticas de libros, usuarios y préstamos activos.</p>
+    </a>
+  </section>
+
+<script>
+const token = sessionStorage.getItem('authToken');
+if (!token) location.href = '/login.html';
+
+let usuario = {};
+try { usuario = JSON.parse(sessionStorage.getItem('usuario')) || {}; } catch (e) {}
+
+document.getElementById('saludo').textContent = usuario.nombre ? `¡Hola, ${usuario.nombre}!` : '¡Bienvenido!';
+
+// Inventario y Reportes solo para administradores
+const esAdmin = String(usuario.rol || '').toLowerCase() === 'administrador';
+document.querySelectorAll('[data-rol]').forEach(el => {
+  el.hidden = (el.dataset.rol === 'admin') !== esAdmin;
+});
+
+document.getElementById('btnSalir').addEventListener('click', async () => {
+  try { await fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + token } }); } catch (e) {}
+  sessionStorage.clear();
+  location.href = '/index.html';
+});
+</script>
+<script src="/js/session.js"></script>
+</body>
+</html>
