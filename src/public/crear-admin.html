@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entre Libros - Crear administrador</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-acceso="admin">
+<div class="app">
+
+    <header class="topbar">
+        <a href="/inicio.html" class="brand">
+            <span class="mark">EL</span>
+            <span><b>Entre Libros</b><small>Librería &amp; Catálogo</small></span>
+        </a>
+        <div class="top-right"><span class="badge">Administración</span></div>
+    </header>
+
+    <section class="hero-img">
+        <h1>Crear administrador</h1>
+        <p>Registra a otra persona con rol de administrador.</p>
+    </section>
+
+    <form id="admin-form" class="card">
+        <label for="nombre">Nombre</label>
+        <div class="field"><i>🪪</i>
+            <input type="text" id="nombre" required>
+        </div>
+
+        <label for="apellido">Apellido</label>
+        <div class="field"><i>🪪</i>
+            <input type="text" id="apellido" required>
+        </div>
+
+        <label for="correo">Correo Electrónico</label>
+        <div class="field"><i>@</i>
+            <input type="email" id="correo" placeholder="cualquier@correo.com" required>
+        </div>
+
+        <label for="contraseña">Contraseña</label>
+        <div class="field"><i>🔒</i>
+            <input type="password" id="contraseña" required>
+            <button type="button" class="eye" onclick="verClave('contraseña')" aria-label="Mostrar contraseña">👁️</button>
+        </div>
+        <small style="display:block;margin:-6px 0 12px;opacity:.7">Mínimo 8 caracteres, con mayúscula, minúscula y número.</small>
+
+        <label for="confirmar">Confirmar Contraseña</label>
+        <div class="field"><i>🛡️</i>
+            <input type="password" id="confirmar" required>
+        </div>
+
+        <p id="admin-message" class="msg"></p>
+        <button type="submit" class="btn block">Crear administrador</button>
+    </form>
+
+</div>
+
+<script>
+function verClave(id){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';}
+
+function obtenerToken(){
+  return sessionStorage.getItem('authToken');
+}
+
+const COMUNES=['12345','123456','1234567','12345678','123456789','1234567890','password','password1','contraseña','contrasena','qwerty','qwerty123','abc123','111111','000000','admin','admin123','administrador','iloveyou','entrelibros'];
+function validarClave(p,correo){
+  if(p.length<8) return 'La contraseña debe tener mínimo 8 caracteres.';
+  if(!/[A-Z]/.test(p)) return 'Debe incluir al menos una mayúscula.';
+  if(!/[a-z]/.test(p)) return 'Debe incluir al menos una minúscula.';
+  if(!/\d/.test(p)) return 'Debe incluir al menos un número.';
+  if(COMUNES.includes(p.toLowerCase())) return 'Esa contraseña es demasiado común.';
+  const local=correo.split('@')[0].toLowerCase();
+  if(local.length>=4 && p.toLowerCase().includes(local)) return 'La contraseña no debe contener el correo.';
+  return null;
+}
+
+(async function(){
+  try{
+    const r=await fetch('/api/auth/me',{headers:{Authorization:'Bearer '+obtenerToken()}});
+    const d=await r.json();
+    if(!r.ok || String(d.usuario.rol).toLowerCase()!=='administrador'){
+      location.href='/login.html';
+    }
+  }catch(e){ location.href='/login.html'; }
+})();
+
+document.getElementById('admin-form').addEventListener('submit',async function(e){
+  e.preventDefault();
+  const msg=document.getElementById('admin-message');
+  const correo=document.getElementById('correo').value.trim();
+  const clave=document.getElementById('contraseña').value;
+
+  if(clave!==document.getElementById('confirmar').value){ msg.textContent='Las contraseñas no coinciden.'; return; }
+  const errorClave=validarClave(clave,correo);
+  if(errorClave){ msg.textContent=errorClave; return; }
+
+  try{
+    const r=await fetch('/api/auth/crear-admin',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+obtenerToken()},
+      body:JSON.stringify({
+        nombre:document.getElementById('nombre').value,
+        apellido:document.getElementById('apellido').value,
+        correo,
+        contraseña:clave
+      })
+    });
+    const d=await r.json();
+    if(r.ok){ msg.textContent='✅ '+d.mensaje; e.target.reset(); }
+    else { msg.textContent=d.error||'No se pudo crear el administrador.'; }
+  }catch(err){ msg.textContent='Error de conexión con el servidor.'; }
+});
+</script>
+<script src="/js/roles.js"></script>
+<script src="/js/session.js"></script>
+</body>
+</html>

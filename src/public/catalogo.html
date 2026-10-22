@@ -17,15 +17,6 @@
     <div class="top-right"><span class="badge">Lector</span><a href="/login.html" class="avatar">👤</a></div>
   </header>
 
-  <!-- Recordatorio: se muestra cuando exista la ruta de préstamos -->
-  <section class="remind" id="recordatorio" hidden>
-    <small>RECORDATORIO DE PRÉSTAMO</small>
-    <span class="fecha" id="rFecha"></span>
-    <h2 id="rTitulo">Tienes 1 préstamo activo por vencer</h2>
-    <p>Recuerda devolver tu libro antes del límite. Los préstamos vencidos bloquean temporalmente nuevas solicitudes.</p>
-    <a href="#">Gestionar mis préstamos →</a>
-  </section>
-
   <div class="search big">
     <div class="field"><i>🔍</i>
       <input type="text" id="q" placeholder="Buscar por título, autor o temática...">
@@ -48,7 +39,7 @@
 
 <nav class="bottom">
   <a href="/catalogo.html" class="on"><span>📖</span>Explorar</a>
-  <a href="#"><span>🔖</span>Préstamos</a>
+  <a href="/prestamos.html"><span>🔖</span>Préstamos</a>
   <a href="/books.html"><span>🗃️</span>Inventario</a>
   <a href="/login.html"><span>⚙️</span>Perfil</a>
 </nav>
@@ -57,8 +48,7 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-const token = sessionStorage.getItem('authToken');
-const RUTA_PRESTAMOS = '/api/loans';   // ruta del módulo de Daniel
+
 let libros = [], filtro = '';
 
 async function cargar() {
@@ -96,62 +86,24 @@ function tarjeta(l) {
         <span class="pill ${disp > 0 ? '' : 'off'}">${disp > 0 ? `● Disponible (${disp} unidades)` : '● Sin unidades'}</span>
       </div>
     </div>
-    <div class="acts">
-      <button class="bm" aria-label="Guardar">🔖</button>
-      <button class="btn ghost" onclick="detalles(${l.id}, this)">Ver detalles ⌄</button>
-      <a class="btn" href="/libro-detalle.html?id=${l.id}">📖 Detalle del Libro</a>
-    </div>
-    <div class="more" id="m${l.id}">
-      <b>Sinopsis:</b> Sinopsis no disponible todavía.
-      <div class="g">
-        <div><small>Editorial</small><b>${esc(l.editorial ?? '—')}${l['año_publicacion'] ? ` (${l['año_publicacion']})` : ''}</b></div>
-        <div><small>Páginas</small><b>—</b></div>
-        <div><small>Ubicación física</small><b class="lk">—</b></div>
-        <div><small>Condición préstamo</small><b class="lk">14 días renovable</b></div>
-      </div>
-      <div class="ft">
-        <span class="mono">ISBN: ${esc(l.isbn ?? '—')}</span>
-        <button class="btn sm" ${disp > 0 ? '' : 'disabled'} onclick="solicitar(${l.id}, this)">🔖 Solicitar Préstamo</button>
-      </div>
+    <div class="acts" style="justify-content: flex-end;">
+      <!-- Se quitó 'Ver detalles' y se dejó únicamente 'Detalle del libro' -->
+      <a class="btn" href="/libro-detalle.html?id=${l.id}">📖 Detalle del libro</a>
     </div>
   </article>`;
 }
 
-function detalles(id, btn) {
-  const abierto = $('m' + id).classList.toggle('open');
-  btn.textContent = abierto ? 'Ocultar detalles ⌃' : 'Ver detalles ⌄';
-}
-
-async function solicitar(id, btn) {
-  if (!token) { location.href = '/login.html'; return; }
-  btn.disabled = true;
-  try {
-    const r = await fetch(RUTA_PRESTAMOS, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ libro_id: id })
-    });
-    if (r.status === 404) { alert('El módulo de préstamos aún no está conectado.'); btn.disabled = false; return; }
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) { alert(d.error || 'No se pudo solicitar el préstamo.'); btn.disabled = false; return; }
-    btn.textContent = '✔✔ ¡Préstamo Solicitado!';
-    btn.classList.add('done');
-  } catch (e) {
-    alert('No se pudo conectar con el servidor.');
-    btn.disabled = false;
-  }
-}
-
-$('q').addEventListener('input', pintar);
-$('chips').addEventListener('click', e => {
+$('q').addEventListener('input', pintar);$('chips').addEventListener('click', e => {
   const c = e.target.closest('.chip'); if (!c) return;
   document.querySelectorAll('.chip').forEach(x => x.classList.remove('on'));
   c.classList.add('on');
   filtro = c.dataset.f;
   pintar();
 });
+
 cargar();
 </script>
 <script src="/js/roles.js"></script>
 <script src="/js/session.js"></script>
+</body>
 </html>

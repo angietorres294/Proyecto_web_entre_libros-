@@ -1,9 +1,7 @@
 const { sesiones } = require('../controllers/auth.controller');
 
-// Tiempo máximo de inactividad: 10 minutos
 const TIEMPO_INACTIVIDAD = 10 * 60 * 1000;
 
-// Verificar que exista una sesión válida
 const requireAuth = (req, res, next) => {
     const token = req.headers.authorization?.replace('Bearer ', '');
 
@@ -21,7 +19,6 @@ const requireAuth = (req, res, next) => {
         });
     }
 
-    // Comprobar 10 minutos de inactividad
     const tiempoSinActividad = Date.now() - sesion.ultimoAcceso;
 
     if (tiempoSinActividad >= TIEMPO_INACTIVIDAD) {
@@ -32,16 +29,13 @@ const requireAuth = (req, res, next) => {
         });
     }
 
-    // Actualizar el último acceso
     sesion.ultimoAcceso = Date.now();
 
-    // Guardar el usuario para las siguientes funciones
     req.user = sesion;
 
     next();
 };
 
-// Verificar que el usuario tenga uno de los roles permitidos
 const requireRole = (...rolesPermitidos) => {
     return (req, res, next) => {
         if (!req.user) {

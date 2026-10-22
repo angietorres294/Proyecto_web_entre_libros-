@@ -43,8 +43,18 @@
             <button type="button" class="eye" onclick="verClave('contraseña')" aria-label="Mostrar contraseña">👁️</button>
         </div>
 
-        <p id="auth-message" class="msg"></p>
-        <button type="submit" class="btn block">Iniciar Sesión →</button>
+        <!-- CAMPO 2FA OCULTO HASTA QUE SE DETECTE UN ADMINISTRADOR -->
+        <div id="group-2fa" style="display: none; margin-top: 15px; background: #e2e8f0; padding: 12px; border-radius: 10px;">
+            <label for="codigo2FA" style="color: #0f2540; font-weight: bold;">🔑 Código de Verificación 2FA (Admin)</label>
+            <div class="field" style="margin-top: 5px;">
+                <i>🛡️</i>
+                <input type="text" id="codigo2FA" name="codigo2FA" placeholder="Ingresa el código de 6 dígitos" maxlength="6">
+            </div>
+            <small style="color: #475569; display: block; margin-top: 4px;">Se ha enviado un código de seguridad a tu correo/consola.</small>
+        </div>
+
+        <p id="auth-message" class="msg" style="margin-top: 10px; font-weight: bold;"></p>
+        <button type="submit" id="btn-login" class="btn block">Iniciar Sesión →</button>
     </form>
 
     <p class="alt">¿No tienes una cuenta? <a href="/register.html"><b>Regístrate aquí</b></a></p>
@@ -52,15 +62,75 @@
 </div>
 
 <script>
-function verClave(id){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';}
-</script>
-<script src="/js/auth.js"></script>
-<script src="/js/session.js"></script>
-<script>
-if (new URLSearchParams(location.search).get('expirada')) {
-    document.getElementById('auth-message').textContent =
-        'Tu sesión se cerró por inactividad. Inicia sesión de nuevo.';
+function verClave(id){
+    const i = document.getElementById(id);
+    i.type = i.type === 'password' ? 'text' : 'password';
 }
+
+document.getElementById('login-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const correo = document.getElementById('correo').value.trim();
+    const contraseña = document.getElementById('contraseña').value;
+    const codigo2FA = document.getElementById('codigo2FA').value.trim();
+    const group2FA = document.getElementById('group-2fa');
+    const msg = document.getElementById('auth-message');
+    const btn = document.getElementById('btn-login');
+
+    msg.textContent = 'Verificando...';
+    msg.style.color = '#0F2540';
+    btn.disabled = true;
+
+    try {
+        const payload = { correo, contraseña };
+        if (codigo2FA) {
+            payload.codigo2FA = codigo2FA;
+        }
+
+        const respuesta = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const datos = await respuesta.json();
+
+        if (!respuesta.ok) {
+            msg.textContent = datos.error || 'Credenciales incorrectas.';
+            msg.style.color = '#d9534f';
+            btn.disabled = false;
+            return;
+        }
+
+        if (datos.requiere2FA) {
+            group2FA.style.display = 'block';
+            msg.textContent = '🔑 Administrador: Ingresa el código 2FA enviado a tu correo/consola.';
+            msg.style.color = '#0F2540';
+            btn.disabled = false;
+            btn.textContent = 'Validar Código 2FA →';
+            return;
+        }
+
+        sessionStorage.setItem('authToken', datos.token);
+        sessionStorage.setItem('usuario', JSON.stringify(datos.usuario));
+
+        msg.textContent = '✅ ¡Inicio exitoso! Redirigiendo...';
+        msg.style.color = '#28a745';
+
+        setTimeout(() => {
+            window.location.href = '/inicio.html';
+        }, 500);
+
+    } catch (error) {
+        console.error(error);
+        msg.textContent = 'Error de conexión con el servidor.';
+        msg.style.color = '#d9534f';
+        btn.disabled = false;
+    }
+});
 </script>
 </body>
 </html>

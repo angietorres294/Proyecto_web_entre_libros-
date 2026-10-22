@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modificación de Libros - Entre Libros</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a href="/inicio.html" class="brand">
+      <span class="mark">EL</span>
+      <span><b>Entre Libros</b><small>Inventario</small></span>
+    </a>
+    <div class="top-right"><span class="badge">Admin</span><a href="/login.html" class="avatar">👤</a></div>
+  </header>
+
+  <div class="pagehead">
+    <div>
+      <h1>Modificación de Libros</h1>
+      <p>Selecciona un libro del catálogo para ajustar su stock</p>
+    </div>
+  </div>
+
+
+  <div class="search">
+    <div class="field"><i>🔍</i>
+      <input type="text" id="searchTitulo" placeholder="Buscar por título..." onkeyup="if(event.key==='Enter')cargarLibros()">
+    </div>
+    <button class="btn" onclick="cargarLibros()">Buscar</button>
+  </div>
+
+  <div class="chips">
+    <strong style="font-size:.8rem;align-self:center">Categoría:</strong>
+    <button class="chip" onclick="filtrar('Tecnología',this)">Tecnología</button>
+    <button class="chip" onclick="filtrar('Literatura',this)">Literatura</button>
+    <button class="chip" onclick="filtrar('Ciencia',this)">Ciencia</button>
+    <button class="chip" onclick="filtrar('Historia',this)">Historia</button>
+    <button class="chip on" onclick="filtrar('',this)">Ver Todas</button>
+  </div>
+
+
+  <div id="tablaLibros"></div>
+
+</div>
+
+<nav class="bottom">
+  <a href="/catalogo.html"><span>📖</span>Explorar</a>
+  <a href="#"><span>🔖</span>Préstamos</a>
+  <a href="/books.html" class="on"><span>🗃️</span>Inventario</a>
+  <a href="/inicio.html"><span>⚙️</span>Perfil</a>
+</nav>
+
+<script>
+const token = sessionStorage.getItem('authToken');
+let categoriaFiltro = '';
+
+document.addEventListener('DOMContentLoaded', () => {
+  cargarLibros();
+});
+
+function filtrar(cat, btn){
+  categoriaFiltro = cat;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+  btn.classList.add('on');
+  cargarLibros();
+}
+
+async function cargarLibros() {
+  const titulo = document.getElementById('searchTitulo').value.trim();
+
+  const params = new URLSearchParams();
+  if (titulo) params.append('titulo', titulo);
+  if (categoriaFiltro) params.append('categoria', categoriaFiltro);
+
+  const url = `/api/books?${params.toString()}`;
+
+  try {
+    const headers = token ? { Authorization: 'Bearer ' + token } : {};
+    const res = await fetch(url, { headers });
+    const libros = await res.json();
+
+    if (!Array.isArray(libros)) return;
+
+    const cont = document.getElementById('tablaLibros');
+    cont.innerHTML = libros.length ? '' : '<p class="empty">No hay libros con ese filtro.</p>';
+
+    libros.forEach(libro => {
+      cont.innerHTML += `
+        <article class="book">
+          <div class="book-top">
+            <div class="cover">📕</div>
+            <div class="book-info">
+              <h2>${libro.titulo}</h2>
+              <p>${libro.autor}</p>
+              <p class="mono">ISBN: ${libro.isbn ?? '—'}</p>
+              <p>${libro.categoria ?? '—'} · ${libro.editorial ?? '—'}</p>
+            </div>
+            <!-- ÚNICA ACCIÓN: LÁPIZ DE EDICIÓN -->
+            <a href="/libro.html?id=${libro.id}" class="edit" aria-label="Modificar libro" style="font-size: 1.4rem; text-decoration: none;">✏️</a>
+          </div>
+        </article>
+      `;
+    });
+  } catch (error) {
+    console.error('Error cargando libros:', error);
+  }
+}
+</script>
+<script src="/js/roles.js"></script>
+<script src="/js/session.js"></script>
+</body>
+</html>

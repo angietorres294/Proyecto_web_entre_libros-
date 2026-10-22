@@ -1,44 +1,70 @@
 const supabase = require('../config/supabase');
 
-exports.getSummary = async (req, res) => {
-  try {
-    // 1. Obtener total de libros
-    const { count: totalBooks, error: booksError } = await supabase
-      .from('libros')
-      .select('*', { count: 'exact', head: true });
+const getReportePrestamos = async (req, res) => {
+    try {
+        
+        const { data: prestamos, error: errorPrestamos } = await supabase
+            .from('prestamos')
+            .select('*')
+            .order('fecha_prestamo', { ascending: false });
 
-    if (booksError) throw booksError;
+        if (errorPrestamos) {
+            console.error(errorPrestamos);
+            return res.status(500).json({ error: 'Error al consultar el reporte de préstamos.' });
+        }
 
-    // 2. Obtener total de usuarios
-    const { count: totalUsers, error: usersError } = await supabase
-      .from('usuarios')
-      .select('*', { count: 'exact', head: true });
+        if (!prestamos || prestamos.length === 0) {
+            return res.status(200).json([]);
+        }
 
-    if (usersError) throw usersError;
+        const usuariosIds = [...new Set(prestamos.map(p => p.usuario_id))];
+        const librosIds = [...new Set(prestamos.map(p => p.libro_id))];
 
-    // 3. Obtener préstamos
-    const { count: activeLoans, error: loansError } = await supabase
-      .from('prestamos')
-      .select('*', { count: 'exact', head: true })
-      .eq('estado', 'PRESTADO');
+        const { data: usuarios } = await supabase
+            .from('usuarios')
+            .select('id, nombre, apellido, correo, rol')
+            .in('id', usuariosIds);
 
-    if (loansError) throw loansError;
+        const { data: libros } = await supabase
+            .from('libros')
+            .select('id, titulo, autor')
+            .in('id', librosIds);
 
-    res.json({
-      success: true,
-      data: {
-        totalBooks: totalBooks || 0,
-        totalUsers: totalUsers || 0,
-        activeLoans: activeLoans || 0
-      }
-    });
+         const mapUsuarios = new Map((usuarios || []).map(u => [u.id, u]));
+         const mapLibros = new Map((libros || []).map(l => [l.id, l]));
 
-  } catch (error) {
-    console.error('Error al obtener reporte:', error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Error al consultar las estadísticas',
-      error: error.message
-    });
-  }
+         const reporte = prestamos.map(p => {
+         const usr = mapUsuarios.get(p.usuario_id);
+         const lib = mapLibros.get(p.libro_id);
+
+         const fInicio = new Date(p.fecha_prestamo);
+         const fLimite = new Date(p.fecha_devolucion_prevista || p.fecha_limite);
+         const fDev = p.fecha_devolucion_real ? new Date(p.fecha_devolucion_real) : null;
+
+         const diffTime = Math.abs((fDev || new Date()) - fInicio);
+         const diasDuracion = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            return {
+                id: p.id,
+                usuario_nombre: usr ? `${usr.nombre} ${usr.apellido}`.trim() : 'Usuario Desconocido',
+                usuario_correo: usr?.correo || 'Sin correo',
+                usuario_rol: usr?.rol || 'Cliente',
+                libro_titulo: lib?.titulo || 'Libro desconocido',
+                libro_autor: lib?.autor || '—',
+                fecha_prestamo: p.fecha_prestamo,
+                fecha_limite: p.fecha_devolucion_prevista || p.fecha_limite,
+                fecha_devolucion: p.fecha_devolucion_real,
+                dias_transcurridos: diasDuracion,
+                estado: p.estado
+            };
+        });
+
+        return res.status(200).json(reporte);
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: 'Error interno del servidor.' });
+    }
 };
+
+module.exports = { getReportePrestamos };

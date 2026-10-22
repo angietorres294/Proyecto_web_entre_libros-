@@ -3,130 +3,135 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Detalle del libro - Entre Libros</title>
+  <title>Detalle del Libro - Entre Libros</title>
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<div class="app" style="padding-bottom:7rem">
+<div class="app">
 
-  <header class="dhead">
-    <a href="/catalogo.html" class="rnd" aria-label="Volver">←</a>
-    <b>Entre Libros</b>
-    <a href="/login.html" class="avatar">👤</a>
+  <header class="topbar">
+    <a href="/catalogo.html" class="brand">
+      <span class="mark">EL</span>
+      <span><b>Entre Libros</b><small>Detalle</small></span>
+    </a>
+    <div class="top-right"><span class="badge">Lector</span></div>
   </header>
 
-  <div class="pillrow">
-    <a href="/catalogo.html" class="back">← Volver al catálogo</a>
-    <div>
-      <button class="rnd" style="width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#fff;cursor:pointer" aria-label="Guardar">🔖</button>
-      <button class="rnd" id="btnShare" style="width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#fff;cursor:pointer" aria-label="Compartir">🔗</button>
-    </div>
-  </div>
+  <div class="backrow"><a href="/catalogo.html" class="back">← Volver al Catálogo</a></div>
 
-  <div id="contenido"><p class="empty">Cargando...</p></div>
+  <div id="contenidoLibro"><p class="empty">Cargando detalles del libro...</p></div>
+
 </div>
 
-<div class="cta"><button class="btn" id="btnPrestamo">📦 Solicitar Préstamo Ahora</button></div>
-
 <script>
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const id = new URLSearchParams(location.search).get('id');
+const params = new URLSearchParams(location.search);
+const libroId = params.get('id');
 const token = sessionStorage.getItem('authToken');
-const RUTA_PRESTAMOS = '/api/loans';   // ruta del módulo de Daniel
-const fmt = d => d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
-let libro = null;
+let unidadesDisponibles = 0;
 
-async function cargar() {
+async function cargarDetalle() {
+  if (!libroId) {
+    document.getElementById('contenidoLibro').innerHTML = '<p class="empty">Libro no especificado.</p>';
+    return;
+  }
+
   try {
     const res = await fetch('/api/books');
-    const datos = await res.json();
-    libro = Array.isArray(datos) ? datos.find(l => String(l.id) === id) : null;
-    if (!libro) { $('contenido').innerHTML = '<p class="empty">No encontramos ese libro.</p>'; $('btnPrestamo').disabled = true; return; }
-    pintar();
+    const libros = await res.json();
+    const libro = (Array.isArray(libros) ? libros : []).find(l => String(l.id) === String(libroId));
+
+    if (!libro) {
+      document.getElementById('contenidoLibro').innerHTML = '<p class="empty">Libro no encontrado.</p>';
+      return;
+    }
+
+    unidadesDisponibles = libro.cantidad_disponible ?? 0;
+
+    document.getElementById('contenidoLibro').innerHTML = `
+      <div class="card" style="padding: 1.5rem; background:#fff; border-radius:18px;">
+        <h1 style="margin: 0 0 .3rem;">${libro.titulo}</h1>
+        <p style="margin: 0 0 1rem; color: #4a5b70;">por <b>${libro.autor}</b></p>
+        
+        <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom: 1.5rem;">
+          <span class="badge">Editorial: ${libro.editorial || '—'}</span>
+          <span class="badge">ISBN: ${libro.isbn || '—'}</span>
+          <span class="badge">Año: ${libro['año_publicacion'] || '—'}</span>
+        </div>
+
+        <div class="meta" style="margin-bottom: 1.5rem;">
+          <span class="pill ${unidadesDisponibles > 0 ? '' : 'off'}">${unidadesDisponibles > 0 ? `● Estado: Disponible (${unidadesDisponibles} unidades físicas)` : '● Sin unidades físicas'}</span>
+        </div>
+
+        <h3>📖 Sinopsis de la obra</h3>
+        <p style="color: #4a5b70; line-height: 1.5; margin-bottom: 1.5rem;">
+          ${libro.sinopsis || 'Sinopsis no disponible todavía.'}
+        </p>
+
+        <div style="background: #f1f5f9; padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem;">
+          <h4 style="margin:0 0 .5rem;">📅 Condiciones y Plazos del Préstamo</h4>
+          <p style="margin:0; font-size:.9rem; color:#475569;">Duración estándar de préstamo: <b>14 días hábiles</b>.</p>
+        </div>
+
+        <!-- Botón siempre habilitado para poder registrar el click -->
+        <button id="btnSolicitar" class="btn block" style="font-size: 1.05rem; padding: 0.9rem;">
+          📦 Solicitar Préstamo Ahora
+        </button>
+      </div>
+    `;
+
+    document.getElementById('btnSolicitar').addEventListener('click', solicitarPrestamo);
+
   } catch (e) {
-    $('contenido').innerHTML = '<p class="empty">No se pudo cargar el libro.</p>';
+    document.getElementById('contenidoLibro').innerHTML = '<p class="empty">Error al cargar la información.</p>';
   }
 }
 
-function pintar() {
-  const l = libro, hue = (l.id * 47) % 360;
-  const hoy = new Date(), limite = new Date(); limite.setDate(hoy.getDate() + 14);
-  const pct = l.cantidad_total ? Math.round(l.cantidad_disponible / l.cantidad_total * 100) : 0;
-  const hay = l.activo && l.cantidad_disponible > 0;
-  document.title = `${l.titulo} - Entre Libros`;
+async function solicitarPrestamo() {
+  // 1. Verificación local de stock para responder inmediatamente
+  if (unidadesDisponibles < 1) {
+    alert('El libro no cuenta con unidades disponibles');
+    return;
+  }
 
-  $('contenido').innerHTML = `
-  <section class="dhero">
-    <div class="cover" style="background:linear-gradient(135deg,hsl(${hue} 45% 32%),hsl(${hue} 55% 16%))">📕<em>Tapa Dura</em></div>
-    <div>
-      <div class="kind">✦ ${esc((l.categoria ?? 'Sin categoría').toUpperCase())}</div>
-      <h1>${esc(l.titulo)}</h1>
-      <div>por <b>${esc(l.autor)}</b></div>
-      <div class="chipsm">
-        <span>Editorial ${esc(l.editorial ?? '—')}</span>
-        <span>ISBN ${esc(l.isbn ?? '—')}</span>
-        ${l['año_publicacion'] ? `<span>${l['año_publicacion']}</span>` : ''}
-      </div>
-    </div>
-  </section>
+  if (!token) {
+    alert('Debes iniciar sesión para realizar la solicitud.');
+    location.href = '/login.html';
+    return;
+  }
 
-  <section class="card stbox">
-    <div class="row">
-      <div><span class="pill ${hay ? '' : 'off'}">● Estado: ${hay ? 'Disponible' : 'No disponible'}</span>
-      <span class="badge" style="background:var(--sand);color:#5B6B80;margin-left:.3rem">Ejemplar #${String(l.id).padStart(3, '0')}</span></div>
-      <h3>Estante —</h3>
-    </div>
-    <div class="prog">
-      <div class="ico">🗃️</div>
-      <div style="flex:1">${l.cantidad_disponible} unidades físicas disponibles en biblioteca
-        <div class="bar2"><span style="width:${pct}%"></span></div></div>
-    </div>
-  </section>
+  const btn = document.getElementById('btnSolicitar');
+  btn.disabled = true;
 
-  <section class="card sec">
-    <h3>📖 Sinopsis de la obra</h3>
-    <p class="clamp" id="sin">Sinopsis no disponible todavía.</p>
-    <button class="lnk" onclick="$('sin').classList.toggle('clamp');this.textContent=$('sin').classList.contains('clamp')?'Leer sinopsis completa ⌄':'Ocultar sinopsis ⌃'">Leer sinopsis completa ⌄</button>
-  </section>
+  try {
+    const res = await fetch('/api/loans/request', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ libro_id: parseInt(libroId) })
+    });
 
-  <section class="card sec">
-    <h3>📅 Condiciones y Plazos del Préstamo</h3>
-    <div class="dates">
-      <div><small>FECHA DE SOLICITUD</small><b>Hoy (${fmt(hoy)})</b></div>
-      <div><small>FECHA LÍMITE DEVOLUCIÓN</small><b>14 días (Límite: ${fmt(limite)})</b></div>
-    </div>
-    <div class="note">ⓘ Puedes renovar tu préstamo hasta 1 vez desde tu panel de usuario si no existen reservas en lista de espera.</div>
-  </section>`;
+    const data = await res.json().catch(() => ({}));
 
-  $('btnPrestamo').disabled = !hay;
+    if (!res.ok) {
+      alert(data.error || 'El libro no cuenta con unidades disponibles');
+      btn.disabled = false;
+      return;
+    }
+
+    alert('✅ ¡Préstamo solicitado exitosamente!');
+    location.href = '/prestamos.html';
+
+  } catch (error) {
+    alert('Error al conectar con el servidor.');
+    btn.disabled = false;
+  }
 }
 
-$('btnPrestamo').addEventListener('click', async () => {
-  if (!libro) return;
-  if (!token) { location.href = '/login.html'; return; }
-  const b = $('btnPrestamo'); b.disabled = true;
-  try {
-    const r = await fetch(RUTA_PRESTAMOS, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ libro_id: libro.id })
-    });
-    if (r.status === 404) { alert('El módulo de préstamos aún no está conectado.'); b.disabled = false; return; }
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) { alert(d.error || 'No se pudo solicitar el préstamo.'); b.disabled = false; return; }
-    b.textContent = '✔✔ ¡Préstamo Solicitado!';
-  } catch (e) { alert('No se pudo conectar con el servidor.'); b.disabled = false; }
-});
-
-$('btnShare').addEventListener('click', async () => {
-  if (navigator.share) { try { await navigator.share({ title: libro?.titulo, url: location.href }); } catch (e) {} }
-  else { await navigator.clipboard.writeText(location.href); alert('Enlace copiado.'); }
-});
-
-cargar();
+cargarDetalle();
 </script>
 <script src="/js/roles.js"></script>
-</script src="/js/session.js">
-</body data-acceso="Lector">
+<script src="/js/session.js"></script>
+</body>
 </html>

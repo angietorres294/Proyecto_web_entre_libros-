@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitud de Devoluciones - Entre Libros</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .card-req { background: #fff; border-radius: 12px; padding: 1.2rem; margin-bottom: 1rem; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .card-req h3 { margin: 0 0 0.3rem 0; font-size: 1.1rem; color: #0f2540; }
+    .card-req p { margin: 0.1rem 0; font-size: 0.9rem; color: #475569; }
+    .btn-approve { background: #16a085; color: #fff; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+    .btn-approve:hover { background: #117e68; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a href="/inicio.html" class="brand">
+      <span class="mark">EL</span>
+      <span><b>Entre Libros</b><small>Devoluciones</small></span>
+    </a>
+    <div class="top-right"><span class="badge">Panel Admin</span></div>
+  </header>
+
+  <div class="pagehead">
+    <div>
+      <h1>Solicitud de Devoluciones</h1>
+      <p>Aprueba la entrega física de los libros recibidos de los usuarios.</p>
+    </div>
+  </div>
+
+  <p id="msg" class="msg" style="font-weight: bold; margin-bottom: 1rem;"></p>
+  <div id="contenedorSolicitudes"><p class="empty">Cargando solicitudes pendientes...</p></div>
+
+  <p class="alt" style="margin-top: 1.5rem;"><a href="/inicio.html"><b>← Volver al inicio</b></a></p>
+
+</div>
+
+<script>
+const token = sessionStorage.getItem('authToken');
+if (!token) location.href = '/login.html';
+
+const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+
+async function cargarSolicitudes() {
+  try {
+    const res = await fetch('/api/loans/pending-returns', { headers: H });
+    const data = await res.json();
+
+    const cont = document.getElementById('contenedorSolicitudes');
+    if (!Array.isArray(data) || !data.length) {
+      cont.innerHTML = '<p class="empty">No hay solicitudes de devolución pendientes en este momento.</p>';
+      return;
+    }
+
+    cont.innerHTML = data.map(s => `
+      <div class="card-req">
+        <div>
+          <h3>📖 ${s.libro_titulo}</h3>
+          <p><b>Usuario:</b> ${s.usuario_nombre} (${s.usuario_email})</p>
+          <p><b>Fecha de Préstamo:</b> ${s.fecha_prestamo}</p>
+        </div>
+        <button class="btn-approve" onclick="aceptarDevolucion(${s.id}, this)">✔ Aceptar Devolución Libro</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('contenedorSolicitudes').innerHTML = '<p class="empty">Error al cargar las solicitudes.</p>';
+  }
+}
+
+async function aceptarDevolucion(id, btn) {
+  if (!confirm('¿Confirmas que recibiste el libro físicamente y deseas aceptar la devolución?')) return;
+
+  btn.disabled = true;
+  const msg = document.getElementById('msg');
+  msg.textContent = '';
+
+  try {
+    const res = await fetch(`/api/loans/${id}/approve-return`, { method: 'PATCH', headers: H });
+    const data = await res.json();
+
+    if (!res.ok) {
+      msg.textContent = data.error || 'No se pudo procesar la devolución.';
+      msg.style.color = '#b91c1c';
+      btn.disabled = false;
+      return;
+    }
+
+    msg.textContent = '✅ Devolución aceptada exitosamente. El libro volvió al inventario.';
+    msg.style.color = '#15803d';
+
+    setTimeout(() => {
+      msg.textContent = '';
+      cargarSolicitudes();
+    }, 1200);
+
+  } catch (e) {
+    msg.textContent = 'Error al conectar con el servidor.';
+    msg.style.color = '#b91c1c';
+    btn.disabled = false;
+  }
+}
+
+cargarSolicitudes();
+</script>
+<script src="/js/roles.js"></script>
+<script src="/js/session.js"></script>
+</body>
+</html>

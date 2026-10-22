@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entre Libros - Reporte de Libros Nuevos</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .card-metric { background: #fff; border-radius: 12px; padding: 1.2rem; border: 1px solid #e2e8f0; text-align: center; }
+    .card-metric h3 { font-size: 2rem; margin: 0.2rem 0; color: #0f2540; }
+    .card-metric p { margin: 0; font-size: 0.85rem; color: #64748b; font-weight: bold; }
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
+    th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f8fafc; color: #0f2540; }
+    .badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
+    .badge-activo { background: #dcfce7; color: #15803d; }
+    .badge-inactivo { background: #fee2e2; color: #b91c1c; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a href="/inicio.html" class="brand">
+      <span class="mark">EL</span>
+      <span><b>Entre Libros</b><small>Libros Nuevos e Inventario</small></span>
+    </a>
+    <div class="top-right"><span class="badge">Panel Admin</span></div>
+  </header>
+
+  <div class="pagehead">
+    <div>
+      <h1>Reporte de Libros</h1>
+      <p>Control de cuota máxima (50 libros) y estado actual del catálogo.</p>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="card-metric">
+      <p>LIBROS INGRESADOS</p>
+      <h3 id="mIngresados">0 / 50</h3>
+    </div>
+    <div class="card-metric">
+      <p>ACTIVOS</p>
+      <h3 id="mActivos" style="color: #15803d;">0</h3>
+    </div>
+    <div class="card-metric">
+      <p>INACTIVOS</p>
+      <h3 id="mInactivos" style="color: #b91c1c;">0</h3>
+    </div>
+  </div>
+
+  <div class="search big">
+    <div class="field"><i>🔍</i>
+      <input type="text" id="filtro" placeholder="Buscar por título, autor o categoría...">
+    </div>
+  </div>
+
+  <div class="table-container card">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Título</th>
+          <th>Autor</th>
+          <th>Categoría</th>
+          <th>Stock</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-libros">
+        <tr><td colspan="6" style="text-align:center;">Cargando catálogo...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="alt" style="margin-top: 1.5rem;"><a href="/inicio.html"><b>← Volver al inicio</b></a></p>
+
+</div>
+
+<script>
+const token = sessionStorage.getItem('authToken');
+if (!token) location.href = '/login.html';
+
+let todosLosLibros = [];
+
+async function cargarReporte() {
+  try {
+    const res = await fetch('/api/books/report', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    
+    if (res.status === 401 || res.status === 403) {
+      location.href = '/login.html';
+      return;
+    }
+
+    const data = await res.json();
+    
+    document.getElementById('mIngresados').textContent = `${data.resumen.totalIngresados} / ${data.resumen.limitePermitido}`;
+    document.getElementById('mActivos').textContent = data.resumen.activos;
+    document.getElementById('mInactivos').textContent = data.resumen.inactivos;
+
+    todosLosLibros = data.libros || [];
+    renderizarTabla(todosLosLibros);
+
+  } catch (e) {
+    document.getElementById('tabla-libros').innerHTML = '<tr><td colspan="6" style="text-align:center;">Error al cargar el reporte.</td></tr>';
+  }
+}
+
+function renderizarTabla(lista) {
+  const tbody = document.getElementById('tabla-libros');
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay libros registrados.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = lista.map(l => `
+    <tr>
+      <td><b>#${l.id}</b></td>
+      <td><b>${l.titulo}</b></td>
+      <td>${l.autor}</td>
+      <td>${l.categoria || '—'}</td>
+      <td>${l.cantidad_disponible} / ${l.cantidad_total}</td>
+      <td>
+        <span class="badge ${l.activo ? 'badge-activo' : 'badge-inactivo'}">
+          ${l.activo ? 'Activo' : 'Inactivo'}
+        </span>
+      </td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('filtro').addEventListener('input', (e) => {
+  const q = e.target.value.toLowerCase().trim();
+  const filtrados = todosLosLibros.filter(l => 
+    (l.titulo && l.titulo.toLowerCase().includes(q)) ||
+    (l.autor && l.autor.toLowerCase().includes(q)) ||
+    (l.categoria && l.categoria.toLowerCase().includes(q))
+  );
+  renderizarTabla(filtrados);
+});
+
+cargarReporte();
+</script>
+<script src="/js/roles.js"></script>
+<script src="/js/session.js"></script>
+</body>
+</html>

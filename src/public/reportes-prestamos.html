@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entre Libros - Reporte General de Préstamos</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .table-container { overflow-x: auto; margin-top: 1rem; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
+    th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f8fafc; color: #0f2540; font-weight: bold; }
+    tr:hover { background-color: #f1f5f9; }
+    .status-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
+    .status-prestado { background: #e0f2fe; color: #0369a1; }
+    .status-devuelto { background: #dcfce7; color: #15803d; }
+    .status-vencido { background: #fee2e2; color: #b91c1c; }
+  </style>
+</head>
+<body data-acceso="admin">
+<div class="app">
+
+  <header class="topbar">
+    <a href="/inicio.html" class="brand">
+      <span class="mark">EL</span>
+      <span><b>Entre Libros</b><small>Reporte de Préstamos</small></span>
+    </a>
+    <div class="top-right"><span class="badge">Panel Admin</span></div>
+  </header>
+
+  <div class="pagehead">
+    <div>
+      <h1>Control y Gestión de Préstamos</h1>
+      <p>Usuarios activos, libros solicitados y tiempo de posesión.</p>
+    </div>
+  </div>
+
+  <div class="search big">
+    <div class="field"><i>🔍</i>
+      <input type="text" id="filtro" placeholder="Filtrar por usuario, correo o libro...">
+    </div>
+  </div>
+
+  <p id="msg" class="msg" style="margin-top: 10px; font-weight: bold;"></p>
+
+  <div class="table-container card">
+    <table>
+      <thead>
+        <tr>
+          <th>Usuario</th>
+          <th>Correo</th>
+          <th>Libro</th>
+          <th>Fecha Préstamo</th>
+          <th>Límite Devolución</th>
+          <th>Días Transcurridos</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-cuerpo">
+        <tr><td colspan="7" style="text-align:center;">Cargando reporte de préstamos...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="alt"><a href="/inicio.html"><b>← Volver al inicio</b></a></p>
+
+</div>
+
+<script>
+const token = sessionStorage.getItem('authToken');
+if (!token) location.href = '/login.html';
+
+const fmt = f => f ? new Date(f).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+let listaReporte = [];
+
+async function cargarReporte() {
+  const msg = document.getElementById('msg');
+  try {
+    const res = await fetch('/api/reports/loans', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      location.href = '/login.html';
+      return;
+    }
+
+    const datos = await res.json();
+    if (!res.ok) {
+      msg.textContent = datos.error || 'No se pudo cargar el reporte.';
+      msg.style.color = '#d9534f';
+      return;
+    }
+
+    listaReporte = datos;
+    renderizarTabla(listaReporte);
+
+  } catch (err) {
+    console.error(err);
+    msg.textContent = 'Error de conexión con el servidor.';
+    msg.style.color = '#d9534f';
+  }
+}
+
+function renderizarTabla(datos) {
+  const tbody = document.getElementById('tabla-cuerpo');
+  
+  if (!datos.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No hay registros de préstamos registrados.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = datos.map(r => {
+    const esDevuelto = String(r.estado).toUpperCase() === 'DEVUELTO';
+    const esVencido = !esDevuelto && new Date(r.fecha_limite) < new Date();
+    
+    let badgeClass = 'status-prestado';
+    let estadoTexto = 'En préstamo';
+
+    if (esDevuelto) {
+      badgeClass = 'status-devuelto';
+      estadoTexto = 'Devuelto';
+    } else if (esVencido) {
+      badgeClass = 'status-vencido';
+      estadoTexto = 'Vencido';
+    }
+
+    return `
+      <tr>
+        <td><b>${r.usuario_nombre}</b> <br><small>(${r.usuario_rol})</small></td>
+        <td>${r.usuario_correo}</td>
+        <td><b>${r.libro_titulo}</b><br><small>${r.libro_autor}</small></td>
+        <td>${fmt(r.fecha_prestamo)}</td>
+        <td>${fmt(r.fecha_limite)}</td>
+        <td><b>${r.dias_transcurridos} día(s)</b></td>
+        <td><span class="status-badge ${badgeClass}">${estadoTexto}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+document.getElementById('filtro').addEventListener('input', function(e) {
+  const q = e.target.value.toLowerCase().trim();
+  const filtrados = listaReporte.filter(r => 
+    r.usuario_nombre.toLowerCase().includes(q) ||
+    r.usuario_correo.toLowerCase().includes(q) ||
+    r.libro_titulo.toLowerCase().includes(q)
+  );
+  renderizarTabla(filtrados);
+});
+
+cargarReporte();
+</script>
+<script src="/js/roles.js"></script>
+<script src="/js/session.js"></script>
+</body>
+</html>

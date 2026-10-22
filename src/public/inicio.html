@@ -27,8 +27,11 @@
     .opt p{margin:0;font-size:.9rem;color:#4A5B70}
     .opt.c2{border-top-color:var(--teal)}
     .opt.c3{border-top-color:#F5A524}
-    .opt.c4{border-top-color:#E5533D}
     .opt.c5{border-top-color:var(--blue)}
+    .opt.c6{border-top-color:#8e44ad}
+    .opt.c7{border-top-color:#16a085}
+    .opt.c8{border-top-color:#d35400}
+    .opt.c9{border-top-color:#27ae60}
     .opt[hidden]{display:none}
 
     @media (max-width:520px){.top{padding:.6rem 1rem}.top .logo span{display:none}}
@@ -48,7 +51,7 @@
     <p>Aquí encontrarás los diferentes espacios en los que podemos interactuar. Elige una opción para comenzar.</p>
   </section>
 
-    <section class="options">
+  <section class="options">
     <!-- Lectores -->
     <a href="/catalogo.html" class="opt" data-rol="lector">
       <div class="ic">📚</div>
@@ -72,15 +75,31 @@
       <h2>Registro de libro</h2>
       <p>Agrega un libro nuevo al catálogo de la biblioteca.</p>
     </a>
-    <a href="/books.html" class="opt c5" data-rol="admin" hidden>
-      <div class="ic">✏️</div>
-      <h2>Modificar libro</h2>
-      <p>Elige un libro de la lista y pulsa el lápiz para editar sus datos.</p>
+    
+    <a href="/modificar-libro.html" class="opt c5" data-rol="admin" hidden>
+    <div class="ic">✏️</div>
+    <h2>Modificar libro</h2>
+    <p>Elige un libro de la lista y pulsa el lápiz para editar sus datos.</p>
     </a>
-    <a href="/reports.html" class="opt c4" data-rol="admin" hidden>
-      <div class="ic">📊</div>
-      <h2>Reportes</h2>
-      <p>Revisa las estadísticas de libros, usuarios y préstamos activos.</p>
+    <a href="/solicitud-devoluciones.html" class="opt c9" data-rol="admin" hidden>
+      <div class="ic">🔄</div>
+      <h2>Solicitud de devoluciones</h2>
+      <p>Acepta la entrega de libros devueltos por los usuarios.</p>
+    </a>
+    <a href="/reportes-prestamos.html" class="opt c7" data-rol="admin" hidden>
+      <div class="ic">📋</div>
+      <h2>Reporte de préstamos</h2>
+      <p>Consulta qué usuarios tienen libros asignados y el tiempo de posesión.</p>
+    </a>
+    <a href="/reporte-libros-nuevos.html" class="opt c8" data-rol="admin" hidden>
+      <div class="ic">📖</div>
+      <h2>Reporte de libros nuevos</h2>
+      <p>Control de límite de 50 ingresos, libros activos e inactivos.</p>
+    </a>
+    <a href="/crear-admin.html" class="opt c6" data-rol="admin" hidden>
+      <div class="ic">👤</div>
+      <h2>Crear administrador</h2>
+      <p>Registra una nueva cuenta de usuario con privilegios de administración.</p>
     </a>
   </section>
 
@@ -93,8 +112,9 @@ try { usuario = JSON.parse(sessionStorage.getItem('usuario')) || {}; } catch (e)
 
 document.getElementById('saludo').textContent = usuario.nombre ? `¡Hola, ${usuario.nombre}!` : '¡Bienvenido!';
 
-// Inventario y Reportes solo para administradores
-const esAdmin = String(usuario.rol || '').toLowerCase() === 'administrador';
+const rolUser = String(usuario.rol || '').toLowerCase();
+const esAdmin = rolUser === 'admin' || rolUser === 'administrador';
+
 document.querySelectorAll('[data-rol]').forEach(el => {
   el.hidden = (el.dataset.rol === 'admin') !== esAdmin;
 });

@@ -1,15 +1,7 @@
-// =========================================
-// Control de sesión - Entre Libros
-// =========================================
 
 const TIEMPO_INACTIVIDAD = 10 * 60* 1000;
 
 let temporizadorInactividad = null;
-
-
-// =========================================
-// CERRAR SESIÓN POR INACTIVIDAD
-// =========================================
 
 async function cerrarSesionPorInactividad() {
     const token = sessionStorage.getItem('authToken');
@@ -35,11 +27,6 @@ async function cerrarSesionPorInactividad() {
     window.location.href = '/login.html?expirada=1';
 }
 
-
-// =========================================
-// REINICIAR TEMPORIZADOR
-// =========================================
-
 function reiniciarTemporizador() {
     const token = sessionStorage.getItem('authToken');
 
@@ -55,11 +42,6 @@ function reiniciarTemporizador() {
     );
 }
 
-
-// =========================================
-// DETECTAR ACTIVIDAD DEL USUARIO
-// =========================================
-
 const eventosActividad = [
     'click',
     'keydown',
@@ -74,11 +56,6 @@ eventosActividad.forEach((evento) => {
         reiniciarTemporizador
     );
 });
-
-
-// =========================================
-// INICIAR CONTROL DE SESIÓN
-// =========================================
 
 if (sessionStorage.getItem('authToken')) {
     reiniciarTemporizador();

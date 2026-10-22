@@ -96,7 +96,7 @@ cajas.forEach((c, i) => {
 });
 const codigo = () => cajas.map(c => c.value).join('');
 
-/* Nivel de seguridad */
+
 function evaluar(){
   const v = $('nueva').value;
   const r = { len: v.length >= 8, may: /[A-Z]/.test(v), num: /\d/.test(v) };
@@ -120,7 +120,6 @@ function coincide(){
 $('nueva').addEventListener('input', evaluar);
 $('confirmar').addEventListener('input', coincide);
 
-/* Cuenta regresiva para reenviar */
 let seg = 120, timer;
 function iniciarConteo(){
   clearInterval(timer); seg = 120;
@@ -134,7 +133,6 @@ function iniciarConteo(){
 }
 iniciarConteo();
 
-/* Enviar código (requiere ruta en el servidor) */
 async function enviarCodigo(){
   if (!$('correo').value) return msg('Escribe tu correo primero.');
   try {
@@ -153,7 +151,7 @@ async function enviarCodigo(){
 $('btnEnviar').addEventListener('click', enviarCodigo);
 $('reenviar').addEventListener('click', () => { if (seg <= 0) enviarCodigo(); });
 
-/* Actualizar contraseña (requiere ruta en el servidor) */
+
 $('reset-form').addEventListener('submit', async e => {
   e.preventDefault();
   if (codigo().length !== 6) return msg('Completa los 6 dígitos del código.');

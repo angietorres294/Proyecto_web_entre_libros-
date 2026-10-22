@@ -21,7 +21,7 @@
     <div><h1>Mis Préstamos</h1><p>Libros que tienes en tu poder y tu historial</p></div>
   </div>
 
-  <p id="msg" class="msg"></p>
+  <p id="msg" class="msg" style="margin-top: 10px; font-weight: bold;"></p>
   <div id="lista"><p class="empty">Cargando...</p></div>
 </div>
 
@@ -50,10 +50,10 @@ async function cargar() {
       $('lista').innerHTML = '<p class="empty">Aún no tienes préstamos. Explora el catálogo y solicita tu primer libro.</p>';
       return;
     }
-    const activos = ps.filter(p => p.estado === 'activo');
-    const historial = ps.filter(p => p.estado !== 'activo');
+    const activos = ps.filter(p => p.estado === 'activo' || p.estado === 'solicitado');
+    const historial = ps.filter(p => p.estado !== 'activo' && p.estado !== 'solicitado');
     $('lista').innerHTML =
-      (activos.length ? '<h2 style="font-size:1.05rem;margin-bottom:.6rem">Activos</h2>' + activos.map(tarjeta).join('') : '') +
+      (activos.length ? '<h2 style="font-size:1.05rem;margin-bottom:.6rem">Activos / Solicitudes</h2>' + activos.map(tarjeta).join('') : '') +
       (historial.length ? '<h2 style="font-size:1.05rem;margin:1rem 0 .6rem">Historial</h2>' + historial.map(tarjeta).join('') : '');
   } catch (e) {
     $('lista').innerHTML = '<p class="empty">No se pudieron cargar tus préstamos.</p>';
@@ -62,9 +62,15 @@ async function cargar() {
 
 function tarjeta(p) {
   const activo = p.estado === 'activo';
-  const pill = !activo ? '<span class="pill">✔ Devuelto</span>'
-             : p.vencido ? '<span class="pill off">● Vencido</span>'
-             : '<span class="pill">● En préstamo</span>';
+  const solicitado = p.estado === 'solicitado';
+
+  let pill = '<span class="pill">✔ Devuelto</span>';
+  if (solicitado) {
+    pill = '<span class="pill" style="background:#fef3c7;color:#92400e">⏳ En espera de aceptación de devolución</span>';
+  } else if (activo) {
+    pill = p.vencido ? '<span class="pill off">● Vencido</span>' : '<span class="pill">● En préstamo</span>';
+  }
+
   return `
   <article class="book">
     <div class="book-top">
@@ -73,26 +79,44 @@ function tarjeta(p) {
         <h2>${esc(p.titulo)}</h2>
         <p>${esc(p.autor)}</p>
         <p>Solicitado: ${fmt(p.fecha_prestamo)}</p>
-        <p>${activo ? 'Devolver antes del' : 'Devuelto el'}: <b>${fmt(activo ? p.fecha_limite : p.fecha_devolucion)}</b></p>
+        <p>${activo || solicitado ? 'Devolver antes del' : 'Devuelto el'}: <b>${fmt(activo || solicitado ? p.fecha_limite : p.fecha_devolucion)}</b></p>
       </div>
     </div>
     <div class="meta">${pill}
-      ${activo ? `<button class="btn sm" onclick="devolver(${p.id}, this)">↩ Devolver libro</button>` : ''}
+      ${activo ? `<button class="btn sm" onclick="devolver(${p.id}, this)">↩ Solicitar devolución</button>` : ''}
     </div>
   </article>`;
 }
 
 async function devolver(id, btn) {
-  if (!confirm('¿Confirmas que devolviste este libro?')) return;
+  if (!confirm('¿Confirmas que deseas solicitar la devolución de este libro?')) return;
+  
+  const msg = $('msg');
+  msg.textContent = '';
   btn.disabled = true;
+
   try {
     const r = await fetch(`/api/loans/${id}/return`, { method: 'PATCH', headers: H });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) { $('msg').textContent = d.error || 'No se pudo devolver el libro.'; btn.disabled = false; return; }
-    $('msg').textContent = '';
-    cargar();
+    
+    if (!r.ok) { 
+      msg.textContent = d.error || 'No se pudo enviar la devolución.'; 
+      msg.style.color = '#d9534f';
+      btn.disabled = false; 
+      return; 
+    }
+
+    msg.textContent = '⏳ Devolución registrada. En espera de la aceptación por el administrador.';
+    msg.style.color = '#d97706';
+
+    setTimeout(() => {
+      msg.textContent = '';
+      cargar();
+    }, 1200);
+
   } catch (e) {
-    $('msg').textContent = 'No se pudo conectar con el servidor.';
+    msg.textContent = 'No se pudo conectar con el servidor.';
+    msg.style.color = '#d9534f';
     btn.disabled = false;
   }
 }
@@ -101,4 +125,5 @@ cargar();
 </script>
 <script src="/js/roles.js"></script>
 <script src="/js/session.js"></script>
+</body>
 </html>

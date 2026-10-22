@@ -52,12 +52,13 @@
         </div>
 
         <label for="confirmar">Confirmar Contraseña</label>
+        <small style="display:block;margin:-6px 0 12px;opacity:.7">Mínimo 8 caracteres, con mayúscula, minúscula y número.</small>
         <div class="field"><i>🛡️</i>
             <input type="password" id="confirmar" placeholder="Repita la contraseña" required>
         </div>
 
-        <p id="auth-message" class="msg"></p>
-        <button type="submit" class="btn block">Aceptar y Registrar</button>
+        <p id="auth-message" class="msg" style="margin-top: 10px; font-weight: bold;"></p>
+        <button type="submit" id="btn-register" class="btn block">Aceptar y Registrar</button>
     </form>
 
     <p class="alt">¿Ya tienes una cuenta? <a href="/login.html"><b>Inicia sesión aquí</b></a></p>
@@ -65,16 +66,90 @@
 </div>
 
 <script>
-function verClave(id){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';}
-// Bloquea el envío si las contraseñas no coinciden (se ejecuta antes que auth.js)
-document.getElementById('register-form').addEventListener('submit',function(e){
-  if(document.getElementById('contraseña').value!==document.getElementById('confirmar').value){
-    e.stopImmediatePropagation();e.preventDefault();
-    document.getElementById('auth-message').textContent='Las contraseñas no coinciden.';
-  }
-},true);
+function verClave(id){
+    const i = document.getElementById(id);
+    i.type = i.type === 'password' ? 'text' : 'password';
+}
+
+const COMUNES = ['12345','123456','1234567','12345678','123456789','1234567890','password','password1','contraseña','contrasena','qwerty','qwerty123','abc123','111111','000000','admin','admin123','administrador','iloveyou','entrelibros'];
+
+function validarClave(p, correo) {
+    if (p.length < 8) return 'La contraseña debe tener mínimo 8 caracteres.';
+    if (!/[A-Z]/.test(p)) return 'Debe incluir al menos una mayúscula.';
+    if (!/[a-z]/.test(p)) return 'Debe incluir al menos una minúscula.';
+    if (!/\d/.test(p)) return 'Debe incluir al menos un número.';
+    if (COMUNES.includes(p.toLowerCase())) return 'Esa contraseña es demasiado común.';
+    const local = correo.split('@')[0].toLowerCase();
+    if (local.length >= 4 && p.toLowerCase().includes(local)) return 'La contraseña no debe contener tu correo.';
+    return null;
+}
+
+document.getElementById('register-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const msg = document.getElementById('auth-message');
+    const btn = document.getElementById('btn-register');
+
+    const nombre = document.getElementById('nombre').value.trim();
+    const apellido = document.getElementById('apellido').value.trim();
+    const correo = document.getElementById('correo').value.trim();
+    const clave = document.getElementById('contraseña').value;
+    const confirmar = document.getElementById('confirmar').value;
+
+    if (correo.toLowerCase().includes('@administrador')) {
+        msg.textContent = 'No se permite el uso del correo @administrador en el registro público.';
+        msg.style.color = '#d9534f';
+        return;
+    }
+
+    if (clave !== confirmar) {
+        msg.textContent = 'Las contraseñas no coinciden.';
+        msg.style.color = '#d9534f';
+        return;
+    }
+
+    const errClave = validarClave(clave, correo);
+    if (errClave) {
+        msg.textContent = errClave;
+        msg.style.color = '#d9534f';
+        return;
+    }
+
+    msg.textContent = 'Registrando usuario...';
+    msg.style.color = '#0F2540';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, apellido, correo, contraseña: clave })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            msg.textContent = data.error || 'No se pudo registrar el usuario.';
+            msg.style.color = '#d9534f';
+            btn.disabled = false;
+            return;
+        }
+
+        msg.textContent = '✅ Registro exitoso. Redirigiendo al inicio de sesión...';
+        msg.style.color = '#28a745';
+
+        setTimeout(() => {
+            window.location.href = '/login.html';
+        }, 1200);
+
+    } catch (err) {
+        console.error(err);
+        msg.textContent = 'Error de conexión con el servidor.';
+        msg.style.color = '#d9534f';
+        btn.disabled = false;
+    }
+});
 </script>
-<script src="/js/auth.js"></script>
-<script src="/js/session.js"></script>
 </body>
 </html>

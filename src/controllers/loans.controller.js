@@ -1,18 +1,6 @@
 const supabase = require('../config/supabase');
 
 const TABLA = 'prestamos';
-const COL = {
-    usuario: 'usuario_id',
-    libro: 'libro_id',
-    estado: 'estado',
-    desde: 'fecha_prestamo',
-    limite: 'fecha_devolucion_prevista',
-    limiteTs: 'fecha_limite',
-    devuelto: 'fecha_devolucion_real'
-};
-const ESTADO_ACTIVO = 'PRESTADO';
-const ESTADO_DEVUELTO = 'DEVUELTO';
-const DIAS_PRESTAMO = 14;
 
 function fechaLocal(offsetDias = 0) {
     const d = new Date();
@@ -22,198 +10,198 @@ function fechaLocal(offsetDias = 0) {
     return `${d.getFullYear()}-${mes}-${dia}`;
 }
 
-function aFecha(valor, hora) {
-    if (!valor) return null;
-    return String(valor).includes('T')
-        ? new Date(valor)
-        : new Date(`${valor}T${hora}`);
-}
-
-const esActivo = p => String(p[COL.estado]).toUpperCase() === ESTADO_ACTIVO;
-
-function estaVencido(p) {
-    const limite = aFecha(p[COL.limite], '23:59:59');
-    return esActivo(p) && limite && limite < new Date();
-}
-
-function normalizar(p, libro) {
-    return {
-        id: p.id,
-        libro_id: p[COL.libro],
-        titulo: libro?.titulo ?? 'Libro',
-        autor: libro?.autor ?? '',
-        fecha_prestamo: aFecha(p[COL.desde], '12:00:00')?.toISOString() ?? null,
-        fecha_limite: aFecha(p[COL.limite], '23:59:59')?.toISOString() ?? null,
-        fecha_devolucion: aFecha(p[COL.devuelto], '12:00:00')?.toISOString() ?? null,
-        estado: esActivo(p) ? 'activo' : 'devuelto',
-        vencido: !!estaVencido(p)
-    };
-}
-
 const solicitar = async (req, res) => {
     try {
-        const usuarioId = req.user.id;
+
+        const usuarioId = req.user?.id || req.user?.usuarioId || req.user?.usuario_id;
         const libroId = parseInt(req.body.libro_id);
 
+        if (!usuarioId) {
+            return res.status(401).json({ error: 'No se pudo identificar la sesión del usuario.' });
+        }
+
         if (!libroId) {
-            return res.status(400).json({ error: 'El libro es obligatorio' });
+            return res.status(400).json({ error: 'El libro es obligatorio.' });
         }
 
         const { data: libro, error: errorLibro } = await supabase
             .from('libros')
-            .select('id, titulo, activo, cantidad_disponible')
+            .select('*')
             .eq('id', libroId)
             .maybeSingle();
 
-        if (errorLibro) return res.status(500).json({ error: 'Error al consultar el libro' });
-        if (!libro || !libro.activo) return res.status(404).json({ error: 'El libro no está disponible en el catálogo' });
-        if (libro.cantidad_disponible < 1) return res.status(409).json({ error: 'No hay unidades disponibles de este libro' });
+        if (errorLibro || !libro) {
+            return res.status(404).json({ error: 'El libro no existe en el catálogo.' });
+        }
 
-        const { data: activos, error: errorActivos } = await supabase
+        if (libro.activo === false || libro.activo === 'false') {
+            return res.status(400).json({ error: 'Este libro está inactivo.' });
+        }
+
+        if ((libro.cantidad_disponible ?? 0) < 1) {
+            return res.status(409).json({ error: 'El libro no cuenta con unidades disponibles' });
+        }
+
+        const { data: prestamosUsuario } = await supabase
             .from(TABLA)
             .select('*')
-            .eq(COL.usuario, usuarioId)
-            .ilike(COL.estado, ESTADO_ACTIVO);
+            .eq('usuario_id', usuarioId);
 
-        if (errorActivos) return res.status(500).json({ error: 'Error al consultar tus préstamos' });
+        const activos = (prestamosUsuario || []).filter(p => 
+            String(p.estado).toUpperCase() === 'PRESTADO' || 
+            String(p.estado).toUpperCase() === 'SOLICITADO'
+        );
 
-        if (activos.some(p => p[COL.libro] === libroId)) {
-            return res.status(409).json({ error: 'Ya tienes este libro en préstamo' });
+        if (activos.length >= 3) {
+            return res.status(409).json({ error: 'Solo puedes tener un máximo de 3 préstamos simultáneos.' });
         }
 
-        if (activos.some(estaVencido)) {
-            return res.status(403).json({
-                error: 'Tienes préstamos vencidos. Devuélvelos para solicitar nuevos libros'
-            });
+        if (activos.some(p => p.libro_id === libroId)) {
+            return res.status(409).json({ error: 'Ya tienes este libro actualmente prestado o con solicitud en curso.' });
         }
 
-        const limiteTs = new Date(Date.now() + DIAS_PRESTAMO * 24 * 60 * 60 * 1000);
+        const fechaHoy = fechaLocal();
+        const fechaLimite = fechaLocal(14);
 
         const { data: prestamo, error: errorInsert } = await supabase
             .from(TABLA)
             .insert([{
-                [COL.usuario]: usuarioId,
-                [COL.libro]: libroId,
-                [COL.desde]: fechaLocal(),
-                [COL.limite]: fechaLocal(DIAS_PRESTAMO),
-                [COL.limiteTs]: limiteTs.toISOString(),
-                [COL.estado]: ESTADO_ACTIVO
+                usuario_id: usuarioId,
+                libro_id: libroId,
+                fecha_prestamo: fechaHoy,
+                fecha_devolucion_prevista: fechaLimite,
+                estado: 'PRESTADO'
             }])
-            .select('*')
+            .select()
             .single();
 
         if (errorInsert) {
-            console.error(errorInsert);
-            return res.status(500).json({ error: 'No se pudo registrar el préstamo' });
+            console.error('Error insertando en Supabase:', errorInsert);
+            return res.status(500).json({ error: 'No se pudo registrar el préstamo: ' + errorInsert.message });
         }
 
-        const { error: errorStock } = await supabase
+        await supabase
             .from('libros')
-            .update({ cantidad_disponible: libro.cantidad_disponible - 1 })
+            .update({ cantidad_disponible: Math.max(0, (libro.cantidad_disponible || 1) - 1) })
             .eq('id', libroId);
 
-        if (errorStock) {
-            await supabase.from(TABLA).delete().eq('id', prestamo.id);
-            return res.status(500).json({ error: 'No se pudo actualizar el inventario' });
-        }
-
         return res.status(201).json({
-            mensaje: 'Préstamo solicitado correctamente',
-            prestamo: normalizar(prestamo, libro)
+            mensaje: 'Préstamo solicitado exitosamente.',
+            prestamo
         });
 
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ error: 'Error interno del servidor' });
+    } catch (err) {
+        console.error('Error interno:', err);
+        return res.status(500).json({ error: 'Error interno del servidor.' });
     }
 };
 
-// GET /api/loans/mine
 const misPrestamos = async (req, res) => {
     try {
+        const usuarioId = req.user?.id || req.user?.usuarioId || req.user?.usuario_id;
         const { data: prestamos, error } = await supabase
             .from(TABLA)
             .select('*')
-            .eq(COL.usuario, req.user.id)
-            .order(COL.desde, { ascending: false });
+            .eq('usuario_id', usuarioId)
+            .order('fecha_prestamo', { ascending: false });
 
-        if (error) return res.status(500).json({ error: 'Error al consultar tus préstamos' });
-        if (!prestamos.length) return res.status(200).json([]);
+        if (error) return res.status(500).json({ error: error.message });
+        if (!prestamos || !prestamos.length) return res.status(200).json([]);
 
-        const ids = [...new Set(prestamos.map(p => p[COL.libro]))];
-        const { data: libros } = await supabase
-            .from('libros')
-            .select('id, titulo, autor')
-            .in('id', ids);
+        const ids = [...new Set(prestamos.map(p => p.libro_id))];
+        const { data: libros } = await supabase.from('libros').select('id, titulo, autor').in('id', ids);
 
-        const porId = new Map((libros || []).map(l => [l.id, l]));
+        const mapaLibros = new Map((libros || []).map(l => [l.id, l]));
 
-        return res.status(200).json(
-            prestamos.map(p => normalizar(p, porId.get(p[COL.libro])))
-        );
+        const resultado = prestamos.map(p => {
+            const l = mapaLibros.get(p.libro_id);
+            const est = String(p.estado).toUpperCase();
+            let estadoNorm = 'devuelto';
+            if (est === 'PRESTADO' || est === 'ACTIVO') estadoNorm = 'activo';
+            else if (est === 'SOLICITADO') estadoNorm = 'solicitado';
 
+            return {
+                id: p.id,
+                libro_id: p.libro_id,
+                titulo: l ? l.titulo : 'Libro #' + p.libro_id,
+                autor: l ? l.autor : '',
+                fecha_prestamo: p.fecha_prestamo,
+                fecha_limite: p.fecha_devolucion_prevista || p.fecha_limite,
+                fecha_devolucion: p.fecha_devolucion_real || p.fecha_devolucion,
+                estado: estadoNorm
+            };
+        });
+
+        return res.status(200).json(resultado);
     } catch (error) {
-        console.error(error);
-        return res.status(500).json({ error: 'Error interno del servidor' });
+        return res.status(500).json({ error: error.message });
     }
 };
 
 const devolver = async (req, res) => {
     try {
         const id = parseInt(req.params.id);
+        const { data: prestamo } = await supabase.from(TABLA).select('*').eq('id', id).maybeSingle();
 
-        const { data: prestamo, error } = await supabase
-            .from(TABLA)
-            .select('*')
-            .eq('id', id)
-            .maybeSingle();
-
-        if (error) return res.status(500).json({ error: 'Error al consultar el préstamo' });
         if (!prestamo) return res.status(404).json({ error: 'Préstamo no encontrado' });
 
-        const esDueño = prestamo[COL.usuario] === req.user.id;
-        if (!esDueño && req.user.rol !== 'Administrador') {
-            return res.status(403).json({ error: 'No puedes devolver el préstamo de otra persona' });
-        }
+        await supabase.from(TABLA).update({ estado: 'SOLICITADO' }).eq('id', id);
 
-        if (!esActivo(prestamo)) {
-            return res.status(409).json({ error: 'Este préstamo ya fue devuelto' });
-        }
-
-        const { error: errorUpdate } = await supabase
-            .from(TABLA)
-            .update({
-                [COL.estado]: ESTADO_DEVUELTO,
-                [COL.devuelto]: fechaLocal()
-            })
-            .eq('id', id);
-
-        if (errorUpdate) {
-            console.error(errorUpdate);
-            return res.status(500).json({ error: 'No se pudo registrar la devolución' });
-        }
-
-        const { data: libro } = await supabase
-            .from('libros')
-            .select('cantidad_disponible, cantidad_total')
-            .eq('id', prestamo[COL.libro])
-            .maybeSingle();
-
-        if (libro) {
-            await supabase
-                .from('libros')
-                .update({
-                    cantidad_disponible: Math.min(libro.cantidad_disponible + 1, libro.cantidad_total)
-                })
-                .eq('id', prestamo[COL.libro]);
-        }
-
-        return res.status(200).json({ mensaje: 'Libro devuelto correctamente' });
-
+        return res.status(200).json({ mensaje: 'Solicitud de devolución enviada correctamente.' });
     } catch (error) {
-        console.error(error);
-        return res.status(500).json({ error: 'Error interno del servidor' });
+        return res.status(500).json({ error: error.message });
     }
 };
 
-module.exports = { solicitar, misPrestamos, devolver };
+const solicitudesPendientes = async (req, res) => {
+    try {
+        const { data: prestamos, error } = await supabase.from(TABLA).select('*').eq('estado', 'SOLICITADO');
+
+        if (error) return res.status(500).json({ error: error.message });
+        if (!prestamos || !prestamos.length) return res.status(200).json([]);
+
+        const libroIds = [...new Set(prestamos.map(p => p.libro_id))];
+        const usuarioIds = [...new Set(prestamos.map(p => p.usuario_id))];
+
+        const { data: libros } = await supabase.from('libros').select('id, titulo, autor').in('id', libroIds);
+        const { data: usuarios } = await supabase.from('usuarios').select('id, nombre, email').in('id', usuarioIds);
+
+        const mapaLibros = new Map((libros || []).map(l => [l.id, l]));
+        const mapaUsuarios = new Map((usuarios || []).map(u => [u.id, u]));
+
+        return res.status(200).json(prestamos.map(p => ({
+            id: p.id,
+            usuario_nombre: mapaUsuarios.get(p.usuario_id)?.nombre || 'Usuario ' + p.usuario_id,
+            usuario_email: mapaUsuarios.get(p.usuario_id)?.email || '',
+            libro_titulo: mapaLibros.get(p.libro_id)?.titulo || 'Libro #' + p.libro_id,
+            fecha_prestamo: p.fecha_prestamo
+        })));
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+};
+
+const aprobarDevolucion = async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const { data: prestamo } = await supabase.from(TABLA).select('*').eq('id', id).maybeSingle();
+
+        if (!prestamo) return res.status(404).json({ error: 'Préstamo no encontrado' });
+
+        await supabase.from(TABLA).update({ estado: 'DEVUELTO', fecha_devolucion_real: fechaLocal() }).eq('id', id);
+
+        const { data: libro } = await supabase.from('libros').select('cantidad_disponible, cantidad_total').eq('id', prestamo.libro_id).maybeSingle();
+
+        if (libro) {
+            await supabase.from('libros').update({
+                cantidad_disponible: Math.min((libro.cantidad_disponible || 0) + 1, libro.cantidad_total || 1)
+            }).eq('id', prestamo.libro_id);
+        }
+
+        return res.status(200).json({ mensaje: 'Devolución aceptada correctamente.' });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+};
+
+module.exports = { solicitar, misPrestamos, devolver, solicitudesPendientes, aprobarDevolucion };

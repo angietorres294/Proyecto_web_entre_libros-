@@ -5,12 +5,61 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Administración de Libros - Entre Libros</title>
   <link rel="stylesheet" href="/css/app.css">
+  <style>
+
+    .switch-container {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 0.8rem 1rem;
+      margin-top: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #cbd5e1;
+      transition: .3s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #0f2540;
+    }
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+  </style>
 </head>
 <body>
 <div class="app">
 
   <header class="topbar">
-    <a href="/" class="brand">
+    <a href="/inicio.html" class="brand">
       <span class="mark">EL</span>
       <span><b>Entre Libros</b><small>Inventario</small></span>
     </a>
@@ -22,75 +71,14 @@
       <h1>Administración de Libros</h1>
       <p>Control centralizado del acervo bibliográfico</p>
     </div>
-    <a href="/libro.html" class="btn">+ Nuevo Libro</a>
   </div>
 
-  <!-- CONTADORES -->
-  <div class="stats">
-    <div class="stat"><b id="sTotal">0</b><small>Total</small></div>
-    <div class="stat g"><b id="sDisp">0</b><small>Disponibles</small></div>
-    <div class="stat b"><b id="sPrest">0</b><small>Prestados</small></div>
-    <div class="stat"><b id="sInact">0</b><small>Inactivos</small></div>
-  </div>
 
-  <!-- MENSAJE DE ÉXITO -->
-  <div class="ok" id="okMsg">
-    <span>✅</span>
-    <div><strong>¡Libro guardado exitosamente!</strong><span id="okTxt"></span></div>
-    <button onclick="document.getElementById('okMsg').classList.remove('show')" aria-label="Cerrar">✕</button>
-  </div>
-
-  <!-- REGISTRO DE LIBRO -->
-  <div class="card" id="panelNuevo">
-    <h2 style="margin-bottom:.8rem">Registro de Libro</h2>
-    <form id="formLibro">
-      <label for="titulo">Título del libro *</label>
-      <input type="text" id="titulo" placeholder="Ej. El Principito o Cien Años de Soledad" maxlength="80" required>
-
-      <label for="autor">Autor *</label>
-      <input type="text" id="autor" placeholder="Ej. Robert C. Martin" required>
-
-      <label for="editorial">Editorial *</label>
-      <input type="text" id="editorial" placeholder="Ej. Prentice Hall" required>
-
-      <label for="isbn">Código ISBN *</label>
-      <input type="text" id="isbn" placeholder="978-0132350884" required>
-
-      <label for="año_publicacion">Año de publicación *</label>
-      <input type="number" id="año_publicacion" placeholder="Ej. 2008" required>
-
-      <label for="categoria">Categoría / Temática *</label>
-      <select id="categoria" required>
-        <option value="">Selecciona una categoría editorial</option>
-        <option>Tecnología</option><option>Novela</option><option>Literatura</option>
-        <option>Ciencia</option><option>Historia</option><option>Filosofía</option><option>Infantil</option>
-      </select>
-
-      <label>Ejemplares en inventario *</label>
-      <div class="stepper">
-        <span><b>Unidades físicas</b></span>
-        <div>
-          <button type="button" onclick="paso(-1)">−</button>
-          <input type="number" id="cantidad_total" value="1" min="1" required>
-          <button type="button" onclick="paso(1)">+</button>
-        </div>
-      </div>
-
-      <button type="submit" class="btn block" style="margin-top:1rem">Guardar Libro</button>
-    </form>
-  </div>
-
-  <!-- BUSCADOR Y FILTROS -->
   <div class="search">
     <div class="field"><i>🔍</i>
       <input type="text" id="searchTitulo" placeholder="Buscar por título..." onkeyup="if(event.key==='Enter')cargarLibros()">
     </div>
-    <button class="btn ghost" onclick="document.getElementById('filtros').classList.toggle('show')" aria-label="Más filtros">⚙️</button>
     <button class="btn" onclick="cargarLibros()">Buscar</button>
-  </div>
-  <div class="filters" id="filtros">
-    <input type="text" id="searchAutor" placeholder="Autor...">
-    <input type="text" id="searchCategoria" placeholder="Categoría...">
   </div>
 
   <div class="chips">
@@ -102,37 +90,27 @@
     <button class="chip on" onclick="filtrar('',this)">Ver Todas</button>
   </div>
 
-  <!-- LISTA DE LIBROS -->
+
   <div id="tablaLibros"></div>
 
 </div>
 
 <nav class="bottom">
-  <a href="/index.html"><span>📖</span>Explorar</a>
   <a href="/catalogo.html"><span>📖</span>Explorar</a>
-  <a href="#"><span>🔖</span>Préstamos</a>
+  <a href="/prestamos.html"><span>🔖</span>Préstamos</a>
   <a href="/books.html" class="on"><span>🗃️</span>Inventario</a>
-  <a href="/login.html"><span>⚙️</span>Perfil</a>
+  <a href="/inicio.html"><span>⚙️</span>Perfil</a>
 </nav>
-
 <script>
+const token = sessionStorage.getItem('authToken');
+let categoriaFiltro = '';
+
 document.addEventListener('DOMContentLoaded', () => {
   cargarLibros();
-  const p = new URLSearchParams(location.search);
-  if (p.get('guardado')) {
-    document.getElementById('okTxt').textContent = ` El registro de '${p.get('guardado')}' fue guardado en el catálogo.`;
-    document.getElementById('okMsg').classList.add('show');
-    history.replaceState(null, '', '/books.html');
-  }
 });
 
-function paso(n){
-  const i = document.getElementById('cantidad_total');
-  i.value = Math.max(1, (parseInt(i.value) || 1) + n);
-}
-
 function filtrar(cat, btn){
-  document.getElementById('searchCategoria').value = cat;
+  categoriaFiltro = cat;
   document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
   btn.classList.add('on');
   cargarLibros();
@@ -140,57 +118,56 @@ function filtrar(cat, btn){
 
 async function cargarLibros() {
   const titulo = document.getElementById('searchTitulo').value.trim();
-  const autor = document.getElementById('searchAutor').value.trim();
-  const categoria = document.getElementById('searchCategoria').value.trim();
 
   const params = new URLSearchParams();
   if (titulo) params.append('titulo', titulo);
-  if (autor) params.append('autor', autor);
-  if (categoria) params.append('categoria', categoria);
+  if (categoriaFiltro) params.append('categoria', categoriaFiltro);
 
   const url = `/api/books?${params.toString()}`;
 
   try {
-    const res = await fetch(url);
+    const headers = token ? { Authorization: 'Bearer ' + token } : {};
+    const res = await fetch(url, { headers });
     const libros = await res.json();
 
-    if (!Array.isArray(libros)) {
-      console.error('Respuesta inesperada:', libros);
-      return;
-    }
-
-    // Contadores
-    document.getElementById('sTotal').textContent = libros.length;
-    document.getElementById('sDisp').textContent = libros.filter(l => l.activo && l.cantidad_disponible > 0).length;
-    document.getElementById('sPrest').textContent = libros.reduce((s, l) => s + (l.cantidad_total - l.cantidad_disponible), 0);
-    document.getElementById('sInact').textContent = libros.filter(l => !l.activo).length;
+    if (!Array.isArray(libros)) return;
 
     const cont = document.getElementById('tablaLibros');
-    cont.innerHTML = libros.length ? '' : '<p class="empty">No hay libros con ese filtro.</p>';
+    cont.innerHTML = libros.length ? '' : '<p class="empty">No hay libros registrados con ese filtro.</p>';
 
     libros.forEach(libro => {
-      const prestados = libro.cantidad_total - libro.cantidad_disponible;
+      const prestados = Math.max(0, (libro.cantidad_total || 1) - (libro.cantidad_disponible || 0));
+      const estaActivo = libro.activo !== false;
+
       cont.innerHTML += `
         <article class="book">
           <div class="book-top">
-            <div class="cover"></div>
+            <div class="cover">📕</div>
             <div class="book-info">
               <h2>${libro.titulo}</h2>
               <p>${libro.autor}</p>
               <p class="mono">ISBN: ${libro.isbn ?? '—'}</p>
-                            <p>${libro.categoria ?? '—'} · ${libro.editorial ?? '—'}</p>
+              <p>${libro.categoria ?? '—'} · ${libro.editorial ?? '—'}</p>
             </div>
-            <a href="/libro.html?id=${libro.id}" class="edit" aria-label="Modificar libro">✏️</a>
           </div>
-          <div class="meta">
-            <span>Stock: ${libro.cantidad_total} (${prestados} prestados)</span>
-            <span class="pill ${libro.activo ? '' : 'off'}">${libro.activo ? '● Disponible' : '● Inactivo'}</span>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top: .8rem;">
+            <b style="font-size:.9rem;">Stock: ${libro.cantidad_disponible ?? 0} (${prestados} prestados)</b>
+            <span class="pill ${libro.cantidad_disponible > 0 ? '' : 'off'}">
+              ${libro.cantidad_disponible > 0 ? '● Disponible' : '● Sin unidades'}
+            </span>
           </div>
-          <div class="avail">
-            <div><b>Disponibilidad en catálogo</b><small>${libro.activo ? 'Activo para solicitud de préstamos' : 'Inactivo'}</small></div>
-            ${libro.activo
-              ? `<button class="tog" onclick="inactivarLibro(${libro.id})" aria-label="Inactivar libro"></button>`
-              : `<button class="tog" disabled aria-label="Libro inactivo"></button>`}
+
+          <!-- INTERRUPTOR ACTIVO / INACTIVO -->
+          <div class="switch-container">
+            <div>
+              <b style="font-size:.9rem; display:block;">Disponibilidad en catálogo</b>
+              <small style="color:#64748b;">${estaActivo ? 'Activo para solicitud de préstamos' : 'Inactivo (Oculto)'}</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" ${estaActivo ? 'checked' : ''} onchange="cambiarEstado(${libro.id}, this.checked)">
+              <span class="slider"></span>
+            </label>
           </div>
         </article>
       `;
@@ -200,41 +177,51 @@ async function cargarLibros() {
   }
 }
 
-// Agregar nuevo libro
-document.getElementById('formLibro').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const nuevoLibro = {
-    titulo: document.getElementById('titulo').value,
-    autor: document.getElementById('autor').value,
-    categoria: document.getElementById('categoria').value,
-    editorial: document.getElementById('editorial').value,
-    año_publicacion: parseInt(document.getElementById('año_publicacion').value),
-    isbn: document.getElementById('isbn').value,
-    cantidad_total: parseInt(document.getElementById('cantidad_total').value)
-  };
+async function cambiarEstado(id, activo) {
+  if (!token) {
+    alert('Tu sesión ha expirado. Por favor inicia sesión como Administrador.');
+    location.href = '/login.html';
+    return;
+  }
 
-  await fetch('/api/books', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(nuevoLibro)
-  });
+  try {
 
-  document.getElementById('formLibro').reset();
-  document.getElementById('okTxt').textContent = ` El registro de '${nuevoLibro.titulo}' fue incorporado al catálogo con ${nuevoLibro.cantidad_total} ejemplares.`;
-  document.getElementById('okMsg').classList.add('show');
-  document.getElementById('panelNuevo').classList.remove('show');
-  cargarLibros();
-});
+    let res = await fetch(`/api/books/${id}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ activo: activo, estado: activo })
+    });
 
-// Inactivar libro
-async function inactivarLibro(id) {
-  if (confirm('¿Seguro que deseas inactivar este libro?')) {
-    await fetch(`/api/books/${id}/inactivate`, { method: 'PATCH' });
+    if (res.status === 404) {
+      res = await fetch(`/api/books/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ activo: activo })
+      });
+    }
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      alert('Error: ' + (data.error || 'No se pudo cambiar el estado del libro.'));
+      cargarLibros(); 
+      return;
+    }
+
+    cargarLibros(); 
+  } catch (e) {
+    alert('Error al conectar con el servidor.');
     cargarLibros();
   }
 }
 </script>
 <script src="/js/roles.js"></script>
 <script src="/js/session.js"></script>
-</body data-acceso="Admin">
+</body>
 </html>

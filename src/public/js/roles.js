@@ -1,43 +1,53 @@
 (function () {
+  const rutaActual = location.pathname.toLowerCase();
+
+  if (rutaActual.includes('login') || rutaActual.includes('register') || rutaActual.includes('recuperar') || rutaActual === '/' || rutaActual.includes('index')) {
+    return;
+  }
+
   const token = sessionStorage.getItem('authToken');
   let usuario = {};
   try { usuario = JSON.parse(sessionStorage.getItem('usuario')) || {}; } catch (e) {}
-  const esAdmin = String(usuario.rol || '').toLowerCase() === 'administrador';
-  const acceso = document.body.dataset.acceso;   // "admin" o "lector"
 
-  if (!token) { location.replace('/login.html'); return; }
+  const rol = String(usuario.rol || '').toLowerCase();
+  const esAdmin = rol === 'admin' || rol === 'administrador';
+  const acceso = document.body.dataset.acceso;  
 
-  // Cada rol solo entra a sus páginas
+  if (!token) { 
+    location.replace('/login.html'); 
+    return; 
+  }
+
   if ((acceso === 'admin' && !esAdmin) || (acceso === 'lector' && esAdmin)) {
     location.replace('/inicio.html');
     return;
   }
 
-  const actual = location.pathname;
-
   if (esAdmin) {
-    
 
-    // Barra superior del administrador (si la página la tiene)
     const superior = document.querySelector('.navbar nav');
     if (superior) {
-      superior.innerHTML =
+        superior.innerHTML =
         `<a href="/inicio.html">Inicio</a>
          <a href="/books.html">Libros</a>
-         <a href="/reports.html" class="${actual === '/reports.html' ? 'active' : ''}">Reportes</a>
+         <a href="/reports.html" class="${rutaActual.includes('reports') ? 'active' : ''}">Reportes</a>
+         <a href="/crear-admin.html" class="${rutaActual.includes('crear-admin') ? 'active' : ''}">Crear administrador</a>
          <a href="#" id="salirAdmin">Cerrar sesión</a>`;
-      document.getElementById('salirAdmin').addEventListener('click', async (e) => {
-        e.preventDefault();
-        try { await fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + token } }); } catch (err) {}
-        sessionStorage.clear();
-        location.href = '/index.html';
-      });
+
+      const btnSalir = document.getElementById('salirAdmin');
+      if (btnSalir) {
+        btnSalir.addEventListener('click', async (e) => {
+          e.preventDefault();
+          try { await fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + token } }); } catch (err) {}
+          sessionStorage.clear();
+          location.href = '/index.html';
+        });
+      }
     }
   }
 
-  // Flecha para volver al inicio (administradores y clientes)
   const encabezado = document.querySelector('.topbar, .navbar');
-  if (encabezado) {
+  if (encabezado && !document.querySelector('.volver-wrap')) {
     const estilo = document.createElement('style');
     estilo.textContent =
       '.volver-wrap{padding:.7rem 0}' +

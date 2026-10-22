@@ -4,36 +4,40 @@
 
 const API_AUTH = '/api/auth';
 
-// Mostrar mensajes en pantalla
 function mostrarMensaje(mensaje, tipo = '') {
     const elemento = document.getElementById('auth-message');
-
-    if (!elemento) {
-        return;
-    }
-
+    if (!elemento) return;
     elemento.textContent = mensaje;
-    elemento.className = `auth-message ${tipo}`;
+    elemento.className = `msg ${tipo}`;
 }
 
+const COMUNES = ['12345','123456','1234567','12345678','123456789','1234567890','password','password1','contraseña','contrasena','qwerty','qwerty123','abc123','111111','000000','admin','admin123','administrador','iloveyou','entrelibros'];
 
-// =========================================
-// LOGIN
-// =========================================
+function validarClave(p, correo) {
+    if (p.length < 8) return 'La contraseña debe tener mínimo 8 caracteres.';
+    if (!/[A-Z]/.test(p)) return 'Debe incluir al menos una mayúscula.';
+    if (!/[a-z]/.test(p)) return 'Debe incluir al menos una minúscula.';
+    if (!/\d/.test(p)) return 'Debe incluir al menos un número.';
+    if (COMUNES.includes(p.toLowerCase())) return 'Esa contraseña es demasiado común.';
+    const local = correo.split('@')[0].toLowerCase();
+    if (local.length >= 4 && p.toLowerCase().includes(local)) return 'La contraseña no debe contener tu correo.';
+    return null;
+}
 
 const loginForm = document.getElementById('login-form');
 
 if (loginForm) {
     loginForm.addEventListener('submit', async (event) => {
+
         event.preventDefault();
 
         const correo = document.getElementById('correo').value.trim();
         const contraseña = document.getElementById('contraseña').value;
 
-        mostrarMensaje('Iniciando sesión...');
+        mostrarMensaje('Iniciando sesión...', '');
 
         try {
-            const respuesta = await fetch(`${API_AUTH}/login`, {
+            const respuesta = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -54,94 +58,18 @@ if (loginForm) {
                 return;
             }
 
-            // Guardar los datos de la sesión en el navegador
             sessionStorage.setItem('authToken', datos.token);
-            sessionStorage.setItem(
-                'usuario',
-                JSON.stringify(datos.usuario)
-            );
+            sessionStorage.setItem('usuario', JSON.stringify(datos.usuario));
 
-            mostrarMensaje(
-                'Inicio de sesión exitoso.',
-                'auth-success'
-            );
+            mostrarMensaje('Inicio de sesión exitoso. Redirigiendo...', 'auth-success');
 
             setTimeout(() => {
-             window.location.href = '/inicio.html';
-            }, 800);
+                window.location.href = '/inicio.html';
+            }, 600);
 
         } catch (error) {
             console.error(error);
-
-            mostrarMensaje(
-                'No se pudo conectar con el servidor.',
-                'auth-error'
-            );
+            mostrarMensaje('No se pudo conectar con el servidor.', 'auth-error');
         }
     });
 }
-
-
-// =========================================
-// REGISTRO
-// =========================================
-
-const registerForm = document.getElementById('register-form');
-
-if (registerForm) {
-    registerForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-
-        const nombre = document.getElementById('nombre').value.trim();
-        const apellido = document.getElementById('apellido').value.trim();
-        const correo = document.getElementById('correo').value.trim();
-        const contraseña = document.getElementById('contraseña').value;
-
-        mostrarMensaje('Registrando usuario...');
-
-        try {
-            const respuesta = await fetch(`${API_AUTH}/register`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    nombre,
-                    apellido,
-                    correo,
-                    contraseña
-                })
-            });
-
-            const datos = await respuesta.json();
-
-            if (!respuesta.ok) {
-                mostrarMensaje(
-                    datos.error || 'No se pudo registrar el usuario.',
-                    'auth-error'
-                );
-                return;
-            }
-
-            mostrarMensaje(
-                'Registro exitoso. Ahora puedes iniciar sesión.',
-                'auth-success'
-            );
-
-            registerForm.reset();
-
-            setTimeout(() => {
-                window.location.href = '/login.html';
-            }, 1200);
-
-        } catch (error) {
-            console.error(error);
-
-            mostrarMensaje(
-                'No se pudo conectar con el servidor.',
-                'auth-error'
-            );
-        }
-    });
-}
-

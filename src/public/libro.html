@@ -3,8 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Registro de Libro - Entre Libros</title>
+  <title>Registro / Modificación de Libro - Entre Libros</title>
   <link rel="stylesheet" href="/css/app.css">
+  <style>
+    input:disabled, select:disabled, textarea:disabled {
+      background-color: #f1f5f9 !important;
+      color: #64748b !important;
+      cursor: not-allowed !important;
+      border-color: #cbd5e1 !important;
+      user-select: none;
+    }
+  </style>
 </head>
 <body>
 <div class="app">
@@ -19,7 +28,7 @@
 
   <div class="backrow"><a href="/books.html" class="back">← Volver a Gestión</a></div>
   <h1 id="tituloPagina">Registro de Libro</h1>
-  <p class="sub">Ingreso y sincronización con el catálogo central</p>
+  <p class="sub" id="subtituloPagina">Ingreso y sincronización con el catálogo central</p>
 
   <div class="tabs">
     <a href="/libro.html" id="tabNuevo" class="on">＋ Nuevo Registro</a>
@@ -41,7 +50,7 @@
     <label for="isbn"><span>Código ISBN <b class="req">*</b></span></label>
     <div class="field has-scan"><i>▥</i>
       <input type="text" id="isbn" placeholder="978-0132350884">
-      <button type="button" class="scan" onclick="alert('El escáner de ISBN aún no está conectado. Escribe el código a mano.')">📷 Scan</button>
+      <button type="button" class="scan" id="btnScan" onclick="alert('El escáner de ISBN aún no está conectado.')">📷 Scan</button>
     </div>
     <p class="hint">Estándar ISBN-10 o ISBN-13</p>
 
@@ -61,18 +70,18 @@
 
     <label><span>Ejemplares en inventario <b class="req">*</b></span></label>
     <div class="stepper">
-      <span><b>Unidades físicas</b><br><small>Unidades físicas disponibles</small></span>
+      <span><b>Unidades físicas</b><br><small>Único campo editable en modificación</small></span>
       <div>
-        <button type="button" onclick="paso(-1)" aria-label="Restar">−</button>
+        <button type="button" id="btnMenos" onclick="paso(-1)" aria-label="Restar">−</button>
         <input type="number" id="cantidad" value="1" min="1">
-        <button type="button" onclick="paso(1)" aria-label="Sumar">+</button>
+        <button type="button" id="btnMas" onclick="paso(1)" aria-label="Sumar">+</button>
       </div>
     </div>
 
     <label for="sinopsis"><span>Sinopsis o descripción del libro</span></label>
-    <textarea id="sinopsis" placeholder="Escribe un breve resumen de la obra, puntos destacados o contexto del manuscrito..."></textarea>
+    <textarea id="sinopsis" placeholder="Escribe un breve resumen de la obra..."></textarea>
 
-    <div class="avail disp">
+    <div class="avail disp" id="contenedorToggle">
       <div class="ico">✅</div>
       <div><b>Disponible para préstamo</b><small id="estadoTxt">Estado: Activo en catálogo</small></div>
       <button type="button" class="tog green" id="toggle" onclick="alternar()" aria-label="Disponible para préstamo"></button>
@@ -92,137 +101,7 @@
   <a href="/login.html"><span>⚙️</span>Perfil</a>
 </nav>
 
-<script>
-const $ = id => document.getElementById(id);
-const editId = new URLSearchParams(location.search).get('id');
-let libroActual = null;
-let activo = true;
-
-// Pon en true solo cuando la tabla "libros" tenga la columna "sinopsis"
-const ENVIAR_SINOPSIS = false;
-
-function msg(texto, ok) {
-  $('msg').textContent = texto;
-  $('msg').style.color = ok ? 'var(--teal)' : 'var(--coral)';
-}
-
-function paso(n) {
-  $('cantidad').value = Math.max(1, (parseInt($('cantidad').value) || 1) + n);
-}
-
-$('titulo').addEventListener('input', () => {
-  $('cuenta').textContent = `${$('titulo').value.length} / 80`;
-});
-
-function pintarToggle() {
-  $('toggle').classList.toggle('off', !activo);
-  $('estadoTxt').textContent = activo ? 'Estado: Activo en catálogo' : 'Estado: Inactivo';
-}
-
-function alternar() {
-  // Solo se puede inactivar un libro existente que esté activo
-  if (!editId || !libroActual || !libroActual.activo) return;
-  activo = !activo;
-  pintarToggle();
-}
-
-async function cargarLibro() {
-  if (!editId) return;
-
-  $('tabNuevo').classList.remove('on');
-  $('tabMod').classList.remove('off');
-  $('tabMod').classList.add('on');
-  $('tabMod').href = `/libro.html?id=${editId}`;
-  $('tabMod').textContent = `✎ Modificar (#LIB-${editId})`;
-  $('btnGuardar').textContent = 'Guardar cambios';
-
-  try {
-    const res = await fetch('/api/books');
-    const libros = await res.json();
-    libroActual = Array.isArray(libros) ? libros.find(l => String(l.id) === editId) : null;
-
-    if (!libroActual) return msg('No se encontró el libro solicitado.');
-
-    $('tituloPagina').textContent = `Modificar: ${libroActual.titulo} (#LIB-${libroActual.id})`;
-    $('titulo').value = libroActual.titulo || '';
-    $('cuenta').textContent = `${$('titulo').value.length} / 80`;
-    $('autorEditorial').value = [libroActual.autor, libroActual.editorial].filter(Boolean).join(' / ');
-    $('isbn').value = libroActual.isbn || '';
-    $('anio').value = libroActual['año_publicacion'] || '';
-    $('cantidad').value = libroActual.cantidad_total || 1;
-
-    if (libroActual.categoria) {
-      const existe = [...$('categoria').options].some(o => o.value === libroActual.categoria || o.text === libroActual.categoria);
-      if (!existe) $('categoria').add(new Option(libroActual.categoria, libroActual.categoria));
-      $('categoria').value = libroActual.categoria;
-    }
-
-    activo = !!libroActual.activo;
-    pintarToggle();
-  } catch (e) {
-    console.error(e);
-    msg('No se pudo cargar el libro.');
-  }
-}
-
-function isbnValido(v) {
-  const limpio = v.replace(/[-\s]/g, '');
-  return /^\d{9}[\dXx]$/.test(limpio) || /^\d{13}$/.test(limpio);
-}
-
-$('formLibro').addEventListener('submit', async (e) => {
-  e.preventDefault();
-
-  const titulo = $('titulo').value.trim();
-  const partes = $('autorEditorial').value.split('/');
-  const autor = (partes.shift() || '').trim();
-  const editorial = partes.join('/').trim();
-  const isbn = $('isbn').value.trim();
-  const anio = parseInt($('anio').value);
-  const categoria = $('categoria').value;
-  const cantidad = parseInt($('cantidad').value);
-
-  if (!titulo) return msg('Escribe el título del libro.');
-  if (!autor || !editorial) return msg('Escribe autor y editorial separados por "/". Ej: Robert C. Martin / Prentice Hall');
-  if (!isbnValido(isbn)) return msg('El ISBN debe tener 10 o 13 dígitos.');
-  if (!anio) return msg('Escribe el año de publicación.');
-  if (!categoria) return msg('Selecciona una categoría.');
-  if (!cantidad || cantidad < 1) return msg('Los ejemplares deben ser al menos 1.');
-
-  const datos = { titulo, autor, categoria, editorial, año_publicacion: anio, isbn, cantidad_total: cantidad };
-  if (ENVIAR_SINOPSIS) datos.sinopsis = $('sinopsis').value.trim();
-
-  $('btnGuardar').disabled = true;
-  msg('Guardando...', true);
-
-  try {
-    const res = await fetch(editId ? `/api/books/${editId}` : '/api/books', {
-      method: editId ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(datos)
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      $('btnGuardar').disabled = false;
-      return msg(err.error || err.message || 'No se pudo guardar el libro.');
-    }
-
-    // Si apagaron el interruptor, se inactiva con la ruta que ya existe
-    if (editId && libroActual && libroActual.activo && !activo) {
-      await fetch(`/api/books/${editId}/inactivate`, { method: 'PATCH' });
-    }
-
-    location.href = `/books.html?guardado=${encodeURIComponent(titulo)}`;
-  } catch (err) {
-    console.error(err);
-    $('btnGuardar').disabled = false;
-    msg('No se pudo conectar con el servidor.');
-  }
-});
-
-cargarLibro();
-</script>
+<script src="/js/libro.js"></script>
 <script src="/js/roles.js"></script>
 <script src="/js/session.js"></script>
 </body data-acceso="Admin">

@@ -2,6 +2,7 @@ const express = require('express');
 
 const {
     register,
+    crearAdmin,
     login,
     logout,
     forgotPassword,
@@ -15,20 +16,17 @@ const {
 
 const router = express.Router();
 
-// Registro
 router.post('/register', register);
 
-// Inicio de sesión
+router.post('/crear-admin', requireAuth, requireRole('administrador'), crearAdmin);
+
 router.post('/login', login);
 
-// Cierre de sesión
 router.post('/logout', logout);
 
-// Recuperación de contraseña
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 
-// Consultar el usuario de la sesión actual
 router.get('/me', requireAuth, (req, res) => {
     return res.status(200).json({
         usuario: req.user
