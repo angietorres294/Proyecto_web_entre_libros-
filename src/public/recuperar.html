@@ -12,7 +12,7 @@
   <header class="topbar">
     <a href="/" class="brand">
       <span class="mark">EL</span>
-      <span><b>Entre Libros</b><small>Librería &amp; Catálogo</small></span>
+      <span><b>Entre Libros</b><small>Librería & Catálogo</small></span>
     </a>
   </header>
 
@@ -23,9 +23,14 @@
 
   <div class="notice warn"><strong>Aviso de Seguridad:</strong><br>El enlace y código de recuperación tienen una validez de 15 minutos.</div>
 
-  <form id="reset-form" class="card">
+  <form id="reset-form" class="card" onsubmit="actualizarContrasena(event)">
 
-    <div class="step">PASO 1: CORREO ELECTRÓNICO REGISTRADO * <button type="button" class="link" id="btnEnviar">Enviar código</button></div>
+    <div class="step">
+      PASO 1: CORREO ELECTRÓNICO REGISTRADO * 
+      <button type="button" class="link" id="btnEnviar" onclick="enviarCodigo(event)" style="cursor:pointer; position:relative; z-index:10;">
+        Enviar código
+      </button>
+    </div>
     <div class="field"><i>✉️</i>
       <input type="email" id="correo" placeholder="lector@biblioteca.com" required>
     </div>
@@ -42,7 +47,7 @@
 
     <div class="step">PASO 3: NUEVA CONTRASEÑA *</div>
     <div class="field"><i>🔒</i>
-      <input type="password" id="nueva" placeholder="Nueva contraseña" required>
+      <input type="password" id="nueva" placeholder="Nueva contraseña" oninput="evaluar()" required>
       <button type="button" class="eye" onclick="ver('nueva')" aria-label="Mostrar contraseña">👁️</button>
     </div>
     <div class="strength">
@@ -57,7 +62,7 @@
 
     <div class="step">PASO 4: CONFIRMAR NUEVA CONTRASEÑA *</div>
     <div class="field"><i>🛡️</i>
-      <input type="password" id="confirmar" placeholder="Repita la contraseña" required>
+      <input type="password" id="confirmar" placeholder="Repita la contraseña" oninput="coincide()" required>
       <span class="tick" id="tick">✔</span>
       <button type="button" class="eye" onclick="ver('confirmar')" aria-label="Mostrar contraseña">👁️</button>
     </div>
@@ -67,16 +72,20 @@
     <a href="/login.html" class="btn ghost block" style="margin-top:.6rem;padding:.8rem">← Regresar a Iniciar Sesión</a>
   </form>
 
-  <p class="foot">¿No recibiste el código? <b id="reenviar">Reenviar código en 02:00</b> o contacta a <a href="mailto:soporte@entrelibros.com">soporte@entrelibros.com</a></p>
+  <p class="foot">¿No recibiste el código? <b id="reenviar" onclick="enviarCodigo(event)" style="cursor:pointer; text-decoration:underline;">Enviar/Reenviar código ahora</b> o contacta a <a href="mailto:soporte@entrelibros.com">soporte@entrelibros.com</a></p>
 
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
-const msg = (t, ok) => { $('msg').textContent = t; $('msg').style.color = ok ? 'var(--teal)' : 'var(--coral)'; };
+const msg = (t, ok) => { 
+  const el = $('msg');
+  el.textContent = t; 
+  el.style.color = ok ? '#0E9F6E' : '#E5533D'; 
+};
 function ver(id){ const i=$(id); i.type = i.type==='password' ? 'text' : 'password'; }
 
-/* Casillas del código: avanzar, retroceder y pegar */
+/* Manejo de las 6 casillas OTP */
 const cajas = [...document.querySelectorAll('#otp input')];
 cajas.forEach((c, i) => {
   c.addEventListener('input', () => {
@@ -96,14 +105,16 @@ cajas.forEach((c, i) => {
 });
 const codigo = () => cajas.map(c => c.value).join('');
 
-
+/* Validación de contraseña */
 function evaluar(){
   const v = $('nueva').value;
   const r = { len: v.length >= 8, may: /[A-Z]/.test(v), num: /\d/.test(v) };
   [['len','Mínimo 8 car.'],['may','Mayúscula'],['num','Número']].forEach(([k, t]) => {
     const el = $('c-' + k);
-    el.textContent = (r[k] ? '✔ ' : '○ ') + t;
-    el.className = r[k] ? 'ok-c' : '';
+    if(el) {
+      el.textContent = (r[k] ? '✔ ' : '○ ') + t;
+      el.className = r[k] ? 'ok-c' : '';
+    }
   });
   const n = Object.values(r).filter(Boolean).length;
   const niveles = ['—', 'Débil', 'Media', 'Segura y Óptima'];
@@ -117,59 +128,80 @@ function evaluar(){
 function coincide(){
   $('tick').classList.toggle('show', $('confirmar').value && $('confirmar').value === $('nueva').value);
 }
-$('nueva').addEventListener('input', evaluar);
-$('confirmar').addEventListener('input', coincide);
 
-let seg = 120, timer;
+/* Temporizador visible */
+let seg = 120, timer = null;
 function iniciarConteo(){
-  clearInterval(timer); seg = 120;
+  clearInterval(timer); 
+  seg = 120;
   timer = setInterval(() => {
     seg--;
-    const m = String(Math.floor(seg/60)).padStart(2,'0'), s = String(seg%60).padStart(2,'0');
+    const m = String(Math.floor(seg/60)).padStart(2,'0');
+    const s = String(seg%60).padStart(2,'0');
     $('reenviar').textContent = seg > 0 ? `Reenviar código en ${m}:${s}` : 'Reenviar código ahora';
-    $('reenviar').style.cursor = seg > 0 ? 'default' : 'pointer';
     if (seg <= 0) clearInterval(timer);
   }, 1000);
 }
-iniciarConteo();
 
-async function enviarCodigo(){
-  if (!$('correo').value) return msg('Escribe tu correo primero.');
+/* Solicitar el código */
+async function enviarCodigo(e){
+  if (e) e.preventDefault();
+  const correoVal = $('correo').value.trim();
+  if (!correoVal) {
+    alert('Por favor escribe tu correo electrónico en el Paso 1.');
+    return msg('Escribe tu correo electrónico en el Paso 1.', false);
+  }
+
+  msg('Solicitando código...', true);
+
   try {
     const res = await fetch('/api/auth/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ correo: $('correo').value })
+      body: JSON.stringify({ correo: correoVal })
     });
-    if (res.status === 404) return msg('El servidor aún no tiene activada la recuperación de contraseña.');
+
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return msg(data.error || data.message || 'No se pudo enviar el código.');
-    msg('Te enviamos un código a tu correo.', true);
+
+    if (!res.ok) return msg(data.error || 'No se pudo enviar el código.', false);
+
+    msg('¡Código generado! Revisa la consola del servidor.', true);
     iniciarConteo();
-  } catch (e) { msg('No se pudo conectar con el servidor.'); }
+
+  } catch (err) {
+    console.error(err);
+    msg('No se pudo conectar con el servidor.', false);
+  }
 }
-$('btnEnviar').addEventListener('click', enviarCodigo);
-$('reenviar').addEventListener('click', () => { if (seg <= 0) enviarCodigo(); });
 
-
-$('reset-form').addEventListener('submit', async e => {
+/* Actualizar contraseña */
+async function actualizarContrasena(e){
   e.preventDefault();
-  if (codigo().length !== 6) return msg('Completa los 6 dígitos del código.');
-  if (!evaluar()) return msg('La contraseña debe tener 8 caracteres, una mayúscula y un número.');
-  if ($('nueva').value !== $('confirmar').value) return msg('Las contraseñas no coinciden.');
+  if (codigo().length !== 6) return msg('Completa los 6 dígitos del código.', false);
+  if (!evaluar()) return msg('La contraseña debe tener 8 caracteres, una mayúscula y un número.', false);
+  if ($('nueva').value !== $('confirmar').value) return msg('Las contraseñas no coinciden.', false);
+
   try {
     const res = await fetch('/api/auth/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ correo: $('correo').value, codigo: codigo(), nueva_contraseña: $('nueva').value })
+      body: JSON.stringify({ 
+        correo: $('correo').value.trim(), 
+        codigo: codigo(), 
+        nuevaContraseña: $('nueva').value 
+      })
     });
-    if (res.status === 404) return msg('El servidor aún no tiene activada la recuperación de contraseña.');
+
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return msg(data.error || data.message || 'Código inválido o vencido.');
-    msg('Contraseña actualizada. Redirigiendo...', true);
-    setTimeout(() => location.href = '/login.html', 1500);
-  } catch (err) { msg('No se pudo conectar con el servidor.'); }
-});
+
+    if (!res.ok) return msg(data.error || 'Código inválido o vencido.', false);
+
+    msg('Contraseña actualizada con éxito. Redirigiendo...', true);
+    setTimeout(() => location.href = '/login.html', 1200);
+  } catch (err) { 
+    msg('No se pudo conectar con el servidor.', false); 
+  }
+}
 </script>
 </body>
 </html>

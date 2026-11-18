@@ -8,9 +8,13 @@
   <style>
     .card-req { background: #fff; border-radius: 12px; padding: 1.2rem; margin-bottom: 1rem; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
     .card-req h3 { margin: 0 0 0.3rem 0; font-size: 1.1rem; color: #0f2540; }
-    .card-req p { margin: 0.1rem 0; font-size: 0.9rem; color: #475569; }
+    .card-req p { margin: 0.15rem 0; font-size: 0.9rem; color: #475569; }
+    .acciones-dev { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end; }
+    .fecha-box { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: #1e293b; }
+    .fecha-box input[type="date"] { padding: 0.35rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-family: inherit; }
     .btn-approve { background: #16a085; color: #fff; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
     .btn-approve:hover { background: #117e68; }
+    .alerta-retraso { color: #b91c1c; font-weight: bold; font-size: 0.85rem; }
   </style>
 </head>
 <body>
@@ -27,7 +31,7 @@
   <div class="pagehead">
     <div>
       <h1>Solicitud de Devoluciones</h1>
-      <p>Aprueba la entrega física de los libros recibidos de los usuarios.</p>
+      <p>Confirma la fecha de entrega física de los libros recibidos de los usuarios.</p>
     </div>
   </div>
 
@@ -43,6 +47,7 @@ const token = sessionStorage.getItem('authToken');
 if (!token) location.href = '/login.html';
 
 const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+const hoyISO = new Date().toISOString().slice(0, 10);
 
 async function cargarSolicitudes() {
   try {
@@ -60,9 +65,16 @@ async function cargarSolicitudes() {
         <div>
           <h3>📖 ${s.libro_titulo}</h3>
           <p><b>Usuario:</b> ${s.usuario_nombre} (${s.usuario_email})</p>
-          <p><b>Fecha de Préstamo:</b> ${s.fecha_prestamo}</p>
+          <p><b>Fecha de Préstamo:</b> ${s.fecha_prestamo} | <b>Fecha Límite:</b> ${s.fecha_limite || '—'}</p>
+          ${s.dias_retraso > 0 ? `<p class="alerta-retraso">⚠️ Retraso actual: ${s.dias_retraso} día(s) — Multa estimada: $${s.multa_estimada.toLocaleString('es-CO')}</p>` : ''}
         </div>
-        <button class="btn-approve" onclick="aceptarDevolucion(${s.id}, this)">✔ Aceptar Devolución Libro</button>
+        <div class="acciones-dev">
+          <label class="fecha-box">
+            <span><b>Fecha en que se devolvió:</b></span>
+            <input type="date" id="fecha-dev-${s.id}" value="${hoyISO}">
+          </label>
+          <button class="btn-approve" onclick="aceptarDevolucion(${s.id}, this)">✔ Aceptar Devolución Libro</button>
+        </div>
       </div>
     `).join('');
   } catch (e) {
@@ -71,14 +83,26 @@ async function cargarSolicitudes() {
 }
 
 async function aceptarDevolucion(id, btn) {
-  if (!confirm('¿Confirmas que recibiste el libro físicamente y deseas aceptar la devolución?')) return;
+  const inputFecha = document.getElementById(`fecha-dev-${id}`);
+  const fechaDevolucionReal = inputFecha ? inputFecha.value : hoyISO;
+
+  if (!fechaDevolucionReal) {
+    alert('Selecciona la fecha en que se devolvió el libro.');
+    return;
+  }
+
+  if (!confirm(`¿Confirmas que recibiste el libro el ${fechaDevolucionReal}?`)) return;
 
   btn.disabled = true;
   const msg = document.getElementById('msg');
   msg.textContent = '';
 
   try {
-    const res = await fetch(`/api/loans/${id}/approve-return`, { method: 'PATCH', headers: H });
+    const res = await fetch(`/api/loans/${id}/approve-return`, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ fecha_devolucion_real: fechaDevolucionReal })
+    });
     const data = await res.json();
 
     if (!res.ok) {
@@ -88,13 +112,12 @@ async function aceptarDevolucion(id, btn) {
       return;
     }
 
-    msg.textContent = '✅ Devolución aceptada exitosamente. El libro volvió al inventario.';
-    msg.style.color = '#15803d';
+    msg.textContent = data.con_multa ? `⚠️ ${data.mensaje}` : `✅ ${data.mensaje}`;
+    msg.style.color = data.con_multa ? '#b91c1c' : '#15803d';
 
     setTimeout(() => {
-      msg.textContent = '';
       cargarSolicitudes();
-    }, 1200);
+    }, 2000);
 
   } catch (e) {
     msg.textContent = 'Error al conectar con el servidor.';

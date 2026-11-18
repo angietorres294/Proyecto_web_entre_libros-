@@ -7,14 +7,18 @@
   <link rel="stylesheet" href="/css/app.css">
   <style>
     .table-container { overflow-x: auto; margin-top: 1rem; }
-    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
-    th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem; }
+    th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
     th { background: #f8fafc; color: #0f2540; font-weight: bold; }
     tr:hover { background-color: #f1f5f9; }
-    .status-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
+    .status-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.78rem; display: inline-block; }
     .status-prestado { background: #e0f2fe; color: #0369a1; }
+    .status-pendiente { background: #fef3c7; color: #92400e; }
     .status-devuelto { background: #dcfce7; color: #15803d; }
     .status-vencido { background: #fee2e2; color: #b91c1c; }
+    .multa-tag { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 4px 8px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; display: inline-block; }
+    .btn-desbloquear { margin-top: 6px; background: #16a085; color: #fff; border: none; padding: 5px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: bold; cursor: pointer; }
+    .btn-desbloquear:hover { background: #117e68; }
   </style>
 </head>
 <body data-acceso="admin">
@@ -31,7 +35,7 @@
   <div class="pagehead">
     <div>
       <h1>Control y Gestión de Préstamos</h1>
-      <p>Usuarios activos, libros solicitados y tiempo de posesión.</p>
+      <p>Usuarios activos, solicitudes, fechas de devolución real y multas por retraso ($10.000/día).</p>
     </div>
   </div>
 
@@ -48,12 +52,12 @@
       <thead>
         <tr>
           <th>Usuario</th>
-          <th>Correo</th>
           <th>Libro</th>
           <th>Fecha Préstamo</th>
           <th>Límite Devolución</th>
-          <th>Días Transcurridos</th>
+          <th>Fecha Devolución</th>
           <th>Estado</th>
+          <th>Multa / Sanción</th>
         </tr>
       </thead>
       <tbody id="tabla-cuerpo">
@@ -70,7 +74,12 @@
 const token = sessionStorage.getItem('authToken');
 if (!token) location.href = '/login.html';
 
-const fmt = f => f ? new Date(f).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const fmt = f => {
+  if (!f) return '—';
+  const soloFecha = String(f).slice(0, 10);
+  return new Date(soloFecha + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
 let listaReporte = [];
 
 async function cargarReporte() {
@@ -111,8 +120,11 @@ function renderizarTabla(datos) {
   }
 
   tbody.innerHTML = datos.map(r => {
-    const esDevuelto = String(r.estado).toUpperCase() === 'DEVUELTO';
-    const esVencido = !esDevuelto && new Date(r.fecha_limite) < new Date();
+    const estUpper = String(r.estado).toUpperCase();
+    const esDevuelto = estUpper === 'DEVUELTO';
+    const esPendiente = estUpper === 'PENDIENTE';
+    const esRechazado = estUpper === 'RECHAZADO';
+    const esVencido = !esDevuelto && !esPendiente && !esRechazado && r.dias_retraso > 0;
     
     let badgeClass = 'status-prestado';
     let estadoTexto = 'En préstamo';
@@ -120,23 +132,68 @@ function renderizarTabla(datos) {
     if (esDevuelto) {
       badgeClass = 'status-devuelto';
       estadoTexto = 'Devuelto';
+    } else if (esPendiente) {
+      badgeClass = 'status-pendiente';
+      estadoTexto = 'Pendiente aprobación';
+    } else if (esRechazado) {
+      badgeClass = 'status-vencido';
+      estadoTexto = 'No aceptado';
     } else if (esVencido) {
       badgeClass = 'status-vencido';
       estadoTexto = 'Vencido';
     }
 
+    let celdaMulta = '<span style="color:#64748b;">Sin multa</span>';
+    if (r.multa > 0) {
+      let estadoMultaHtml = '';
+      if (r.multa_pagada) {
+        estadoMultaHtml = '<br><small style="color:#15803d;font-weight:bold;">✔ Cliente desbloqueado (Multa saldada)</small>';
+      } else {
+        estadoMultaHtml = '<br><small style="color:#b91c1c;font-weight:bold;">⏳ Multa sin pagar</small>';
+        if (r.tiene_sancion_registrada) {
+          estadoMultaHtml += `<br><button class="btn-desbloquear" onclick="desbloquearCliente(${r.usuario_id}, '${r.usuario_nombre.replace(/'/g, "\\'")}')">🔓 Desbloquear cliente</button>`;
+        }
+      }
+
+      celdaMulta = `
+        <div class="multa-tag">
+          🚫 Multa de $${Number(r.multa).toLocaleString('es-CO')} por devolución retardada (${r.dias_retraso} día/s)
+        </div>
+        ${estadoMultaHtml}
+      `;
+    }
+
     return `
       <tr>
-        <td><b>${r.usuario_nombre}</b> <br><small>(${r.usuario_rol})</small></td>
-        <td>${r.usuario_correo}</td>
+        <td><b>${r.usuario_nombre}</b><br><small>${r.usuario_correo}</small></td>
         <td><b>${r.libro_titulo}</b><br><small>${r.libro_autor}</small></td>
         <td>${fmt(r.fecha_prestamo)}</td>
-        <td>${fmt(r.fecha_limite)}</td>
-        <td><b>${r.dias_transcurridos} día(s)</b></td>
+        <td>${esPendiente || esRechazado ? '—' : fmt(r.fecha_limite)}</td>
+        <td><b>${r.fecha_devolucion ? fmt(r.fecha_devolucion) : (esRechazado ? '—' : 'Pendiente')}</b></td>
         <td><span class="status-badge ${badgeClass}">${estadoTexto}</span></td>
+        <td>${celdaMulta}</td>
       </tr>
     `;
   }).join('');
+}
+
+async function desbloquearCliente(usuarioId, nombreCliente) {
+  if (!confirm(`¿Deseas desbloquear a ${nombreCliente} para que pueda volver a prestar libros?`)) return;
+  try {
+    const res = await fetch(`/api/loans/unlock-user/${usuarioId}`, {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert(data.mensaje || 'Cliente desbloqueado.');
+      cargarReporte();
+    } else {
+      alert(data.error || 'No se pudo desbloquear al cliente.');
+    }
+  } catch (e) {
+    alert('Error de conexión.');
+  }
 }
 
 document.getElementById('filtro').addEventListener('input', function(e) {

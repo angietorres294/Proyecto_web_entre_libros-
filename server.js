@@ -22,6 +22,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'src/public/inicio.html'));
 });
 
+app.get('/recuperar.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'src/public/recuperar.html'));
+});
+
 app.use('/api/*splat', (req, res) => {
   res.status(404).json({ success: false, message: 'Endpoint no encontrado' });
 });

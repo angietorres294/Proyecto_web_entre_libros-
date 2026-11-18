@@ -3,8 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mis Préstamos - Entre Libros</title>
+  <title>Mis Préstamos y Reservas - Entre Libros</title>
   <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .alerta-top { padding: .85rem 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: .92rem; font-weight: 600; }
+    .alerta-top.warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .alerta-top.danger { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+    .btn-ghost { background: #e2e8f0; color: #0f2540; border: none; padding: .4rem .75rem; border-radius: 8px; font-size: .82rem; font-weight: 700; cursor: pointer; text-decoration: none; }
+    .btn-ghost:hover { background: #cbd5e1; }
+  </style>
 </head>
 <body>
 <div class="app">
@@ -18,40 +25,129 @@
   </header>
 
   <div class="pagehead">
-    <div><h1>Mis Préstamos</h1><p>Libros que tienes en tu poder y tu historial</p></div>
+    <div><h1>Mis Préstamos y Reservas</h1><p>Libros en tu poder, lista de espera y comprobantes</p></div>
   </div>
 
+  <div id="zonaAlertas"></div>
   <p id="msg" class="msg" style="margin-top: 10px; font-weight: bold;"></p>
+
+  <div id="seccionReservas"></div>
   <div id="lista"><p class="empty">Cargando...</p></div>
 </div>
 
 <nav class="bottom">
   <a href="/catalogo.html"><span>📖</span>Explorar</a>
   <a href="/prestamos.html" class="on"><span>🔖</span>Préstamos</a>
-  <a href="/books.html"><span>🗃️</span>Inventario</a>
+  <a href="/pago-multas.html"><span>💳</span>Multas</a>
   <a href="/inicio.html"><span>⚙️</span>Perfil</a>
 </nav>
 
 <script>
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const token = sessionStorage.getItem('authToken');
-const fmt = f => f ? new Date(f).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const H = { Authorization: 'Bearer ' + token };
+let listaPrestamos = [];
 
 if (!token) location.href = '/login.html';
 
-async function cargar() {
+function esc(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto ?? '';
+  return div.innerHTML;
+}
+
+function fmt(f) {
+  if (!f) return '—';
+  const soloFecha = String(f).slice(0, 10);
+  return new Date(soloFecha + 'T00:00:00').toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+}
+
+let usuarioActual = {};
+try {
+  usuarioActual = JSON.parse(sessionStorage.getItem('usuario')) || {};
+} catch (e) {}
+
+async function cargarTodo() {
+  await Promise.all([cargarReservas(), cargarPrestamos()]);
+}
+
+async function cargarReservas() {
+  try {
+    const r = await fetch('/api/loans/my-reservations', { headers: H });
+    const reservas = await r.json();
+    if (!Array.isArray(reservas) || !reservas.length) {
+      $('seccionReservas').innerHTML = '';
+      return;
+    }
+
+    $('seccionReservas').innerHTML = `
+      <h2 style="font-size:1.05rem;margin-bottom:.6rem">🔖 Mis Reservas (Lista de espera)</h2>
+      ${reservas.map(res => {
+        const listo = res.estado === 'DISPONIBLE';
+        return `
+          <article class="book" style="border-left: 5px solid ${listo ? '#16a085' : '#d97706'};">
+            <div class="book-top">
+              <div class="cover">🔖</div>
+              <div class="book-info">
+                <h2>${esc(res.titulo)}</h2>
+                <p>${esc(res.autor)}</p>
+                <p>Reservado el: ${fmt(res.fecha_reserva)}</p>
+              </div>
+            </div>
+            <div class="meta">
+              ${listo
+                ? `<span class="pill">🎉 ¡Unidad disponible con prioridad!</span>
+                   <a class="btn sm" href="/libro-detalle.html?id=${res.libro_id}">📦 Solicitar préstamo</a>`
+                : `<span class="pill" style="background:#fef3c7;color:#92400e">⏳ En lista de espera</span>
+                   <button class="btn-ghost" onclick="cancelarReserva(${res.id})">Cancelar reserva</button>`
+              }
+            </div>
+          </article>
+        `;
+      }).join('')}
+      <hr style="margin:1.2rem 0;border:none;border-top:1px solid #e2e8f0;">
+    `;
+  } catch (e) {}
+}
+
+async function cancelarReserva(id) {
+  if (!confirm('¿Deseas cancelar tu reserva en lista de espera?')) return;
+  await fetch(`/api/loans/reservations/${id}`, { method: 'DELETE', headers: H });
+  cargarReservas();
+}
+
+async function cargarPrestamos() {
   try {
     const r = await fetch('/api/loans/mine', { headers: H });
-    if (r.status === 401) { location.href = '/login.html'; return; }
+    if (r.status === 401) {
+      location.href = '/login.html';
+      return;
+    }
     const ps = await r.json();
-    if (!Array.isArray(ps) || !ps.length) {
+    listaPrestamos = Array.isArray(ps) ? ps : [];
+
+    const alertas = [];
+    listaPrestamos.filter(p => p.estado === 'activo').forEach(p => {
+      if (p.vencido) {
+        alertas.push(`<div class="alerta-top danger">⚠️ <b>¡Préstamo vencido!</b> "${esc(p.titulo)}" lleva ${p.dias_retraso} día(s) de retraso ($10.000/día). Solicita la devolución cuanto antes.</div>`);
+      } else if (p.dias_restantes >= 0 && p.dias_restantes <= 3) {
+        alertas.push(`<div class="alerta-top warn">⏰ <b>Próximo a vencer:</b> "${esc(p.titulo)}" debe devolverse ${p.dias_restantes === 0 ? 'hoy' : `en ${p.dias_restantes} día(s)`}.</div>`);
+      }
+    });
+    $('zonaAlertas').innerHTML = alertas.join('');
+
+    if (!listaPrestamos.length) {
       $('lista').innerHTML = '<p class="empty">Aún no tienes préstamos. Explora el catálogo y solicita tu primer libro.</p>';
       return;
     }
-    const activos = ps.filter(p => p.estado === 'activo' || p.estado === 'solicitado');
-    const historial = ps.filter(p => p.estado !== 'activo' && p.estado !== 'solicitado');
+
+    const activos = listaPrestamos.filter(p => p.estado === 'activo' || p.estado === 'solicitado' || p.estado === 'pendiente');
+    const historial = listaPrestamos.filter(p => p.estado !== 'activo' && p.estado !== 'solicitado' && p.estado !== 'pendiente');
+
     $('lista').innerHTML =
       (activos.length ? '<h2 style="font-size:1.05rem;margin-bottom:.6rem">Activos / Solicitudes</h2>' + activos.map(tarjeta).join('') : '') +
       (historial.length ? '<h2 style="font-size:1.05rem;margin:1rem 0 .6rem">Historial</h2>' + historial.map(tarjeta).join('') : '');
@@ -61,15 +157,28 @@ async function cargar() {
 }
 
 function tarjeta(p) {
+  const pendiente = p.estado === 'pendiente';
+  const rechazado = p.estado === 'rechazado';
   const activo = p.estado === 'activo';
   const solicitado = p.estado === 'solicitado';
 
   let pill = '<span class="pill">✔ Devuelto</span>';
-  if (solicitado) {
+  if (pendiente) {
+    pill = '<span class="pill" style="background:#e0f2fe;color:#0369a1">⏳ Pendiente de aprobación del administrador</span>';
+  } else if (rechazado) {
+    pill = '<span class="pill off">✖ Solicitud no aceptada</span>';
+  } else if (solicitado) {
     pill = '<span class="pill" style="background:#fef3c7;color:#92400e">⏳ En espera de aceptación de devolución</span>';
   } else if (activo) {
     pill = p.vencido ? '<span class="pill off">● Vencido</span>' : '<span class="pill">● En préstamo</span>';
   }
+
+  let textoFecha = `<p>Devuelto el: <b>${fmt(p.fecha_devolucion)}</b></p>`;
+  if (pendiente) textoFecha = '<p>Estado: <b>Esperando respuesta del administrador</b></p>';
+  else if (rechazado) textoFecha = '<p>Estado: <b>Solicitud rechazada</b></p>';
+  else if (activo || solicitado) textoFecha = `<p>Devolver antes del: <b>${fmt(p.fecha_limite)}</b></p>`;
+
+  const puedeComprobante = !pendiente && !rechazado;
 
   return `
   <article class="book">
@@ -79,18 +188,63 @@ function tarjeta(p) {
         <h2>${esc(p.titulo)}</h2>
         <p>${esc(p.autor)}</p>
         <p>Solicitado: ${fmt(p.fecha_prestamo)}</p>
-        <p>${activo || solicitado ? 'Devolver antes del' : 'Devuelto el'}: <b>${fmt(activo || solicitado ? p.fecha_limite : p.fecha_devolucion)}</b></p>
+        ${textoFecha}
       </div>
     </div>
-    <div class="meta">${pill}
-      ${activo ? `<button class="btn sm" onclick="devolver(${p.id}, this)">↩ Solicitar devolución</button>` : ''}
+    <div class="meta" style="gap:.5rem; flex-wrap:wrap;">${pill}
+      <div style="display:flex; gap:.45rem; flex-wrap:wrap;">
+        ${puedeComprobante ? `<button class="btn-ghost" onclick="imprimirComprobante(${p.id})">🧾 Comprobante</button>` : ''}
+        ${activo ? `<button class="btn sm" onclick="devolver(${p.id}, this)">↩ Solicitar devolución</button>` : ''}
+      </div>
     </div>
   </article>`;
 }
 
+function imprimirComprobante(prestamoId) {
+  const p = listaPrestamos.find(item => item.id === prestamoId);
+  if (!p) return;
+
+  const win = window.open('', '_blank', 'width=620,height=700');
+  win.document.write(`
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>Comprobante de Préstamo #${p.id} - Entre Libros</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 30px; color: #0f2540; }
+        .box { border: 2px solid #0f2540; border-radius: 12px; padding: 24px; max-width: 520px; margin: auto; }
+        h1 { margin: 0 0 4px; font-size: 22px; }
+        .sub { color: #64748b; margin-bottom: 20px; font-size: 13px; }
+        .row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+        .foot { margin-top: 24px; font-size: 12px; color: #64748b; text-align: center; }
+        @media print { button { display: none; } }
+      </style>
+    </head>
+    <body>
+      <div class="box">
+        <h1>📚 Entre Libros — Biblioteca</h1>
+        <div class="sub">Comprobante Oficial de Préstamo #${p.id}</div>
+        <div class="row"><span><b>Lector:</b></span><span>${esc(usuarioActual.nombre)} ${esc(usuarioActual.apellido)}</span></div>
+        <div class="row"><span><b>Libro:</b></span><span>${esc(p.titulo)}</span></div>
+        <div class="row"><span><b>Autor:</b></span><span>${esc(p.autor || '—')}</span></div>
+        <div class="row"><span><b>Fecha de préstamo:</b></span><span>${fmt(p.fecha_prestamo)}</span></div>
+        <div class="row"><span><b>Fecha límite de entrega:</b></span><span>${fmt(p.fecha_limite)}</span></div>
+        <div class="row"><span><b>Fecha devolución real:</b></span><span>${p.fecha_devolucion ? fmt(p.fecha_devolucion) : 'En curso'}</span></div>
+        <div class="row"><span><b>Estado:</b></span><span>${String(p.estado).toUpperCase()}</span></div>
+        <div class="foot">
+          Recuerda devolver a tiempo para evitar multas de $10.000 COP por día.<br><br>
+          <button onclick="window.print()" style="padding:10px 18px;background:#0f2540;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">🖨️ Imprimir / Guardar PDF</button>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+  win.document.close();
+}
+
 async function devolver(id, btn) {
   if (!confirm('¿Confirmas que deseas solicitar la devolución de este libro?')) return;
-  
   const msg = $('msg');
   msg.textContent = '';
   btn.disabled = true;
@@ -98,22 +252,18 @@ async function devolver(id, btn) {
   try {
     const r = await fetch(`/api/loans/${id}/return`, { method: 'PATCH', headers: H });
     const d = await r.json().catch(() => ({}));
-    
-    if (!r.ok) { 
-      msg.textContent = d.error || 'No se pudo enviar la devolución.'; 
+    if (!r.ok) {
+      msg.textContent = d.error || 'No se pudo enviar la devolución.';
       msg.style.color = '#d9534f';
-      btn.disabled = false; 
-      return; 
+      btn.disabled = false;
+      return;
     }
-
     msg.textContent = '⏳ Devolución registrada. En espera de la aceptación por el administrador.';
     msg.style.color = '#d97706';
-
     setTimeout(() => {
       msg.textContent = '';
-      cargar();
+      cargarTodo();
     }, 1200);
-
   } catch (e) {
     msg.textContent = 'No se pudo conectar con el servidor.';
     msg.style.color = '#d9534f';
@@ -121,7 +271,7 @@ async function devolver(id, btn) {
   }
 }
 
-cargar();
+cargarTodo();
 </script>
 <script src="/js/roles.js"></script>
 <script src="/js/session.js"></script>

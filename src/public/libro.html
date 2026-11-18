@@ -15,7 +15,7 @@
     }
   </style>
 </head>
-<body>
+<body data-acceso="Admin">
 <div class="app">
 
   <header class="topbar">
@@ -70,10 +70,10 @@
 
     <label><span>Ejemplares en inventario <b class="req">*</b></span></label>
     <div class="stepper">
-      <span><b>Unidades físicas</b><br><small>Único campo editable en modificación</small></span>
+      <span><b>Unidades físicas</b><br><small>Máximo 10 unidades permitidas</small></span>
       <div>
         <button type="button" id="btnMenos" onclick="paso(-1)" aria-label="Restar">−</button>
-        <input type="number" id="cantidad" value="1" min="1">
+        <input type="number" id="cantidad" value="1" min="1" max="10">
         <button type="button" id="btnMas" onclick="paso(1)" aria-label="Sumar">+</button>
       </div>
     </div>
@@ -102,7 +102,51 @@
 </nav>
 
 <script src="/js/libro.js"></script>
+<script>
+// Control de tope máximo de 10 unidades físicas
+(function controlarTopeUnidades() {
+  const MAX_UNIDADES = 10;
+  const inputCantidad = document.getElementById('cantidad');
+  const btnMas = document.getElementById('btnMas');
+  const formLibro = document.getElementById('formLibro');
+
+  function validarTope(mostrarAlerta = true) {
+    const valor = parseInt(inputCantidad.value, 10);
+    if (!isNaN(valor) && valor > MAX_UNIDADES) {
+      inputCantidad.value = MAX_UNIDADES;
+      if (mostrarAlerta) {
+        alert(`⚠️ Tope máximo alcanzado: Solo se permiten un máximo de ${MAX_UNIDADES} unidades físicas por libro.`);
+      }
+      return false;
+    }
+    return true;
+  }
+
+  // 1. Si escriben o pegan un número mayor a 10 en el input
+  inputCantidad.addEventListener('input', () => validarTope(true));
+  inputCantidad.addEventListener('change', () => validarTope(true));
+
+  // 2. Si presionan el botón "+" cuando ya está en 10
+  btnMas.addEventListener('click', (e) => {
+    const valorActual = parseInt(inputCantidad.value, 10) || 1;
+    if (valorActual >= MAX_UNIDADES) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      inputCantidad.value = MAX_UNIDADES;
+      alert(`⚠️ Tope máximo alcanzado: No puedes agregar más de ${MAX_UNIDADES} unidades físicas.`);
+    }
+  }, true);
+
+  // 3. Bloquear el guardado del formulario si supera 10
+  formLibro.addEventListener('submit', (e) => {
+    if (!validarTope(true)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
+})();
+</script>
 <script src="/js/roles.js"></script>
 <script src="/js/session.js"></script>
-</body data-acceso="Admin">
+</body>
 </html>

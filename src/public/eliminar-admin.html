@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entre Libros - Eliminar Administrador</title>
+  <link rel="icon" href="/img/logo.png">
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .tabla-admins { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    .tabla-admins th, .tabla-admins td { padding: .85rem; text-align: left; border-bottom: 1px solid #e5e2d9; }
+    .tabla-admins th { background: #f8f7f3; font-weight: 700; color: #1e293b; }
+    .btn-eliminar {
+      background: #E5533D; color: #fff; border: none; padding: .45rem .9rem;
+      border-radius: 6px; cursor: pointer; font-weight: 600;
+    }
+    .btn-eliminar:hover { background: #c93f2b; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a href="/inicio.html" class="brand">
+      <span class="mark">EL</span>
+      <span><b>Entre Libros</b><small>Librería & Catálogo</small></span>
+    </a>
+  </header>
+
+  <a href="/inicio.html" class="backlink">← Volver al inicio</a><br>
+  <span class="tag" style="color:#E5533D;">Acceso Exclusivo Superadministrador</span>
+  <h1>Gestión de Eliminación de Administradores</h1>
+  <p class="lead">Selecciona un administrador para dar de baja su cuenta permanentemente.</p>
+
+  <div class="card">
+    <p id="msg" class="msg"></p>
+    <table class="tabla-admins">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>Correo</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody id="lista-admins">
+        <tr><td colspan="4">Cargando administradores...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const token = sessionStorage.getItem('authToken');
+let usuario = {};
+try { usuario = JSON.parse(sessionStorage.getItem('usuario')) || {}; } catch (e) {}
+
+const msgEl = document.getElementById('msg');
+const tbody = document.getElementById('lista-admins');
+
+function mostrarMensaje(texto, ok = true) {
+  msgEl.textContent = texto;
+  msgEl.style.color = ok ? '#0E9F6E' : '#E5533D';
+}
+
+// Verificar sesión y rol de Superadministrador igual que en inicio.html
+const rolActual = String(usuario.rol || '').toLowerCase();
+const esSuperAdmin = rolActual === 'superadministrador' || rolActual === 'superadmin';
+
+if (!token) {
+  location.href = '/login.html';
+} else if (!esSuperAdmin) {
+  alert('Acceso denegado. Solo el Superadministrador puede ingresar aquí.');
+  location.href = '/inicio.html';
+}
+
+async function cargarAdministradores() {
+  try {
+    const res = await fetch('/api/auth/admins', {
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'user-role': usuario.rol || ''
+      }
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="4">${data.error || 'Error al cargar la lista.'}</td></tr>`;
+      return;
+    }
+
+    const admins = data.administradores || [];
+    if (admins.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4">No hay administradores registrados actualmente.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = admins.map(admin => `
+      <tr>
+        <td>${admin.id}</td>
+        <td>${admin.nombre} ${admin.apellido || ''}</td>
+        <td>${admin.correo}</td>
+        <td>
+          <button class="btn-eliminar" onclick="eliminarAdmin(${admin.id}, '${admin.correo}')">
+            🗑️ Eliminar
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    console.error(err);
+    tbody.innerHTML = '<tr><td colspan="4">No se pudo conectar con el servidor.</td></tr>';
+  }
+}
+
+async function eliminarAdmin(id, correo) {
+  if (!confirm(`¿Estás seguro de eliminar permanentemente al administrador ${correo}?`)) return;
+
+  try {
+    const res = await fetch(`/api/auth/admin/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'user-role': usuario.rol || ''
+      }
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return mostrarMensaje(data.error || 'No se pudo eliminar el administrador.', false);
+    }
+
+    mostrarMensaje(data.mensaje || 'Administrador eliminado correctamente.', true);
+    cargarAdministradores();
+  } catch (err) {
+    console.error(err);
+    mostrarMensaje('Error de conexión al intentar eliminar.', false);
+  }
+}
+
+cargarAdministradores();
+</script>
+<script src="/js/session.js"></script>
+</body>
+</html>

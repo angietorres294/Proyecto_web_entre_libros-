@@ -46,6 +46,13 @@ const createBook = async (req, res) => {
     }
 
     const { titulo, autor, categoria, editorial, año_publicacion, isbn, cantidad_total } = req.body;
+    const totalUnidades = parseInt(cantidad_total);
+
+    if (isNaN(totalUnidades) || totalUnidades < 1 || totalUnidades > 10) {
+      return res.status(400).json({
+        error: 'La cantidad de unidades físicas debe estar entre 1 y un máximo de 10 unidades.'
+      });
+    }
 
     const { data, error } = await supabase.from('libros').insert([
       {
@@ -55,8 +62,8 @@ const createBook = async (req, res) => {
         editorial,
         año_publicacion,
         isbn,
-        cantidad_total,
-        cantidad_disponible: cantidad_total,
+        cantidad_total: totalUnidades,
+        cantidad_disponible: totalUnidades,
         activo: true
       }
     ]).select();
@@ -74,6 +81,14 @@ const updateBook = async (req, res) => {
     const updates = req.body;
 
     if (updates.cantidad_total !== undefined) {
+      const nuevaCantidadTotal = parseInt(updates.cantidad_total);
+
+      if (isNaN(nuevaCantidadTotal) || nuevaCantidadTotal < 1 || nuevaCantidadTotal > 10) {
+        return res.status(400).json({
+          error: 'Tope máximo alcanzado: Solo se permiten hasta 10 unidades físicas por libro.'
+        });
+      }
+
       const { data: libroActual, error: errorConsultar } = await supabase
         .from('libros')
         .select('cantidad_total, cantidad_disponible')
@@ -85,7 +100,6 @@ const updateBook = async (req, res) => {
       }
 
       const prestadosActuales = (libroActual.cantidad_total || 0) - (libroActual.cantidad_disponible || 0);
-      const nuevaCantidadTotal = parseInt(updates.cantidad_total);
 
       if (nuevaCantidadTotal < prestadosActuales) {
         return res.status(400).json({
@@ -93,6 +107,7 @@ const updateBook = async (req, res) => {
         });
       }
 
+      updates.cantidad_total = nuevaCantidadTotal;
       updates.cantidad_disponible = nuevaCantidadTotal - prestadosActuales;
     }
 

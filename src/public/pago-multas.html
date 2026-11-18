@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pago de Multas - Entre Libros</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .multa-card { background: #fff; border: 1px solid #fecaca; border-left: 6px solid #dc2626; border-radius: 14px; padding: 1.4rem; margin-bottom: 1.2rem; box-shadow: 0 6px 18px rgba(15,37,64,.06); }
+    .multa-pagada-card { background: #fff; border: 1px solid #bbf7d0; border-left: 6px solid #16a085; border-radius: 14px; padding: 1.1rem 1.4rem; margin-bottom: .9rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+    .grid-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .8rem; margin: 1rem 0; }
+    .dato-box label { display: block; font-size: .78rem; color: #64748b; font-weight: 700; margin-bottom: .25rem; }
+    .dato-box input { width: 100%; padding: .55rem .75rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #0f2540; font-weight: 600; }
+    .dato-box input.precio-input { color: #b91c1c; font-size: 1.05rem; background: #fef2f2; border-color: #fecaca; }
+    .pago-box { border-top: 1px dashed #cbd5e1; padding-top: 1rem; margin-top: .5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .9rem; align-items: end; }
+    .pago-box label { display: block; font-size: .82rem; font-weight: 700; color: #0f2540; margin-bottom: .3rem; }
+    .pago-box select, .pago-box input { width: 100%; padding: .6rem .8rem; border: 1px solid #94a3b8; border-radius: 8px; font-size: .95rem; }
+    .caja-motivo { grid-column: 1 / -1; background: #fffbeb; border: 1px solid #f59e0b; border-radius: 10px; padding: .9rem; }
+    .caja-motivo label { color: #92400e !important; }
+    .caja-motivo textarea { width: 100%; padding: .55rem; border-radius: 8px; border: 1px solid #d97706; margin-top: .3rem; font-family: inherit; }
+    .nota-habitual { font-size: .76rem; color: #0369a1; font-weight: 600; margin-top: .25rem; display: block; }
+    .btn-pagar { background: #16a085; color: #fff; border: none; padding: .7rem 1.2rem; border-radius: 8px; font-weight: 700; cursor: pointer; width: 100%; font-size: .95rem; }
+    .btn-pagar:hover { background: #117e68; }
+    .btn-recibo { background: #0f2540; color: #fff; border: none; padding: .55rem 1rem; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: .85rem; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a href="/inicio.html" class="brand">
+      <span class="mark">EL</span>
+      <span><b>Entre Libros</b><small>Pago de Multas</small></span>
+    </a>
+    <div class="top-right"><span class="badge">Lector</span><a href="/inicio.html" class="avatar">👤</a></div>
+  </header>
+
+  <div class="pagehead">
+    <div>
+      <h1>Pago de Multas y Comprobantes</h1>
+      <p>Salda tus sanciones con tu cuenta habitual o notifica si deseas utilizar una cuenta diferente.</p>
+    </div>
+  </div>
+
+  <p id="msg" class="msg" style="font-weight:bold; margin-bottom:1rem;"></p>
+  <div id="contenedorMultas"><p class="empty">Consultando estado de multas...</p></div>
+  <div id="contenedorPagadas" style="margin-top:2rem;"></div>
+
+  <p class="alt"><a href="/inicio.html"><b>← Volver al inicio</b></a></p>
+
+</div>
+
+<nav class="bottom">
+  <a href="/catalogo.html"><span>📖</span>Explorar</a>
+  <a href="/prestamos.html"><span>🔖</span>Préstamos</a>
+  <a href="/pago-multas.html" class="on"><span>💳</span>Multas</a>
+  <a href="/inicio.html"><span>⚙️</span>Perfil</a>
+</nav>
+
+<script>
+const token = sessionStorage.getItem('authToken');
+if (!token) location.href = '/login.html';
+
+const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+let cuentasHabituales = {};
+let listaPagadas = [];
+
+function esc(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto ?? '';
+  return div.innerHTML;
+}
+
+function fmt(f) {
+  if (!f || f === '—') return '—';
+  const soloFecha = String(f).slice(0, 10);
+  return new Date(soloFecha + 'T00:00:00').toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+}
+
+async function cargarMultas() {
+  const cont = document.getElementById('contenedorMultas');
+  const contPagadas = document.getElementById('contenedorPagadas');
+
+  try {
+    const res = await fetch('/api/loans/my-fines', { headers: H });
+    const data = await res.json();
+    const pendientes = data.pendientes || [];
+    listaPagadas = data.pagadas || [];
+    cuentasHabituales = data.cuentas_habituales || {};
+
+    if (!pendientes.length) {
+      cont.innerHTML = `
+        <div class="card" style="text-align:center; padding:1.6rem;">
+          <div style="font-size:2.2rem;">✅</div>
+          <h2 style="margin:.4rem 0;">¡Estás al día!</h2>
+          <p style="color:#475569; margin:0;">No tienes multas pendientes. Puedes solicitar préstamos normalmente en el catálogo.</p>
+        </div>`;
+    } else {
+      cont.innerHTML = pendientes.map(m => `
+        <div class="multa-card">
+          <span style="background:#fee2e2;color:#b91c1c;padding:3px 9px;border-radius:999px;font-size:.78rem;font-weight:700;">
+            🚫 Cuenta bloqueada por ${m.dias_retraso} día(s) de retraso
+          </span>
+
+          <div class="grid-datos">
+            <div class="dato-box">
+              <label>Nombre del libro</label>
+              <input type="text" value="${esc(m.libro_titulo)}" readonly>
+            </div>
+            <div class="dato-box">
+              <label>Fecha de préstamo</label>
+              <input type="text" value="${fmt(m.fecha_prestamo)}" readonly>
+            </div>
+            <div class="dato-box">
+              <label>Fecha en que se devolvió</label>
+              <input type="text" value="${fmt(m.fecha_devolucion)}" readonly>
+            </div>
+            <div class="dato-box">
+              <label>Precio a pagar ($10.000 / día)</label>
+              <input type="text" class="precio-input" value="$${Number(m.precio).toLocaleString('es-CO')}" readonly>
+            </div>
+          </div>
+
+          <div class="pago-box">
+            <div>
+              <label for="metodo-${m.id}">Método de pago *</label>
+              <select id="metodo-${m.id}" onchange="alCambiarMetodo(${m.id})">
+                <option value="">Selecciona método de pago</option>
+                <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                <option value="Tarjeta Débito">Tarjeta Débito</option>
+                <option value="PSE / Tarjeta Virtual">PSE / Tarjeta Virtual</option>
+              </select>
+            </div>
+            <div>
+              <label for="tarjeta-${m.id}">Número de cuenta / tarjeta *</label>
+              <input type="text" id="tarjeta-${m.id}" maxlength="19" placeholder="Ej. 4532123456789012"
+                oninput="this.value = this.value.replace(/[^0-9]/g, ''); verificarCambioCuenta(${m.id})">
+              <span id="nota-habitual-${m.id}" class="nota-habitual"></span>
+            </div>
+            <div>
+              <button class="btn-pagar" onclick="pagarMulta(${m.id}, this)">💳 Pagar multa ahora</button>
+            </div>
+
+            <div id="caja-motivo-${m.id}" class="caja-motivo" hidden>
+              <label for="motivo-${m.id}">⚠️ Estás ingresando una cuenta diferente a tu cuenta habitual para este método. Escribe el motivo para notificar al administrador *</label>
+              <textarea id="motivo-${m.id}" rows="2" placeholder="Ej. Cambio de banco, tarjeta anterior vencida, pago desde cuenta familiar..."></textarea>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    if (listaPagadas.length > 0) {
+      contPagadas.innerHTML = `
+        <h2 style="font-size:1.1rem; margin-bottom:.8rem;">🧾 Historial de Multas Pagadas</h2>
+        ${listaPagadas.map(p => `
+          <div class="multa-pagada-card">
+            <div>
+              <b>📖 ${esc(p.libro_titulo)}</b>
+              <p style="margin:.2rem 0; font-size:.86rem; color:#475569;">
+                Pagado: <b style="color:#15803d;">$${Number(p.precio).toLocaleString('es-CO')}</b> · Método: <b>${esc(p.metodo_pago)}</b> · Fecha: ${fmt(p.fecha_pago)}
+              </p>
+            </div>
+            <button class="btn-recibo" onclick="imprimirReciboMulta(${p.id})">🧾 Imprimir Recibo</button>
+          </div>
+        `).join('')}
+      `;
+    } else {
+      contPagadas.innerHTML = '';
+    }
+  } catch (e) {
+    cont.innerHTML = '<p class="empty">No se pudieron cargar las multas.</p>';
+  }
+}
+
+function alCambiarMetodo(id) {
+  const metodo = document.getElementById(`metodo-${id}`).value;
+  const inputTarjeta = document.getElementById(`tarjeta-${id}`);
+  const nota = document.getElementById(`nota-habitual-${id}`);
+  const cajaMotivo = document.getElementById(`caja-motivo-${id}`);
+
+  cajaMotivo.hidden = true;
+
+  if (metodo && cuentasHabituales[metodo]) {
+    inputTarjeta.value = cuentasHabituales[metodo];
+    nota.textContent = '🔒 Cuenta habitual cargada automáticamente para este método.';
+  } else {
+    inputTarjeta.value = '';
+    nota.textContent = metodo ? 'ℹ️ Esta cuenta quedará guardada como tu cuenta habitual para este método.' : '';
+  }
+}
+
+function verificarCambioCuenta(id) {
+  const metodo = document.getElementById(`metodo-${id}`).value;
+  const valorActual = document.getElementById(`tarjeta-${id}`).value.trim();
+  const cajaMotivo = document.getElementById(`caja-motivo-${id}`);
+  const nota = document.getElementById(`nota-habitual-${id}`);
+
+  if (metodo && cuentasHabituales[metodo]) {
+    const esDistinta = valorActual !== cuentasHabituales[metodo];
+    cajaMotivo.hidden = !esDistinta;
+    nota.textContent = esDistinta
+      ? '⚠️ Cuenta modificada: se enviará notificación al administrador.'
+      : '🔒 Cuenta habitual cargada automáticamente para este método.';
+  } else {
+    cajaMotivo.hidden = true;
+  }
+}
+
+function imprimirReciboMulta(sancionId) {
+  const m = listaPagadas.find(item => item.id === sancionId);
+  if (!m) return;
+
+  const win = window.open('', '_blank', 'width=620,height=700');
+  win.document.write(`
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>Recibo de Pago #${m.id} - Entre Libros</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 30px; color: #0f2540; }
+        .box { border: 2px solid #16a085; border-radius: 12px; padding: 24px; max-width: 520px; margin: auto; }
+        h1 { margin: 0 0 4px; font-size: 22px; color: #16a085; }
+        .sub { color: #64748b; margin-bottom: 20px; font-size: 13px; }
+        .row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+        .total { font-size: 18px; font-weight: bold; color: #15803d; margin-top: 12px; text-align: right; }
+        .foot { margin-top: 24px; font-size: 12px; color: #64748b; text-align: center; }
+        @media print { button { display: none; } }
+      </style>
+    </head>
+    <body>
+      <div class="box">
+        <h1>✔ Comprobante de Pago de Multa</h1>
+        <div class="sub">Entre Libros · Recibo N° 00${m.id}</div>
+        <div class="row"><span><b>Cliente:</b></span><span>${esc(m.cliente_nombre)} (${esc(m.cliente_correo)})</span></div>
+        <div class="row"><span><b>Libro:</b></span><span>${esc(m.libro_titulo)}</span></div>
+        <div class="row"><span><b>Días de retraso:</b></span><span>${m.dias_retraso} día(s)</span></div>
+        <div class="row"><span><b>Método de pago:</b></span><span>${esc(m.metodo_pago)}</span></div>
+        <div class="row"><span><b>Fecha de pago:</b></span><span>${fmt(m.fecha_pago)}</span></div>
+        <div class="total">Total Pagado: $${Number(m.precio).toLocaleString('es-CO')} COP</div>
+        <div class="foot">
+          Paz y salvo generado automáticamente por el sistema Entre Libros.<br><br>
+          <button onclick="window.print()" style="padding:10px 18px;background:#16a085;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">🖨️ Imprimir / Guardar PDF</button>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+  win.document.close();
+}
+
+async function pagarMulta(id, btn) {
+  const metodo = document.getElementById(`metodo-${id}`).value;
+  const tarjeta = document.getElementById(`tarjeta-${id}`).value.trim();
+  const motivo = document.getElementById(`motivo-${id}`).value.trim();
+  const msg = document.getElementById('msg');
+
+  if (!metodo) {
+    alert('Por favor selecciona un método de pago.');
+    return;
+  }
+  if (!tarjeta || tarjeta.length < 10) {
+    alert('Por favor ingresa un número de cuenta o tarjeta válido (mínimo 10 dígitos).');
+    return;
+  }
+
+  const esCuentaDiferente = cuentasHabituales[metodo] && cuentasHabituales[metodo] !== tarjeta;
+  if (esCuentaDiferente && motivo.length < 5) {
+    alert('Por favor escribe el motivo por el cual estás usando una cuenta diferente a la habitual para notificar al administrador.');
+    document.getElementById(`motivo-${id}`).focus();
+    return;
+  }
+
+  btn.disabled = true;
+  msg.textContent = '';
+
+  try {
+    const res = await fetch(`/api/loans/fines/${id}/pay`, {
+      method: 'POST',
+      headers: H,
+      body: JSON.stringify({
+        metodo_pago: metodo,
+        numero_tarjeta: tarjeta,
+        motivo_cambio_cuenta: esCuentaDiferente ? motivo : null
+      })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      msg.textContent = data.error || 'No se pudo procesar el pago.';
+      msg.style.color = '#b91c1c';
+      btn.disabled = false;
+      return;
+    }
+
+    msg.textContent = `✅ ${data.mensaje}`;
+    msg.style.color = '#15803d';
+    cargarMultas();
+  } catch (e) {
+    msg.textContent = 'Error de conexión al procesar el pago.';
+    msg.style.color = '#b91c1c';
+    btn.disabled = false;
+  }
+}
+
+cargarMultas();
+</script>
+<script src="/js/roles.js"></script>
+<script src="/js/session.js"></script>
+</body>
+</html>

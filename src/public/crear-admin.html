@@ -57,10 +57,13 @@
 </div>
 
 <script>
-function verClave(id){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';}
+function verClave(id){
+  const i = document.getElementById(id);
+  i.type = i.type === 'password' ? 'text' : 'password';
+}
 
 function obtenerToken(){
-  return sessionStorage.getItem('authToken');
+  return sessionStorage.getItem('authToken') || '';
 }
 
 const COMUNES=['12345','123456','1234567','12345678','123456789','1234567890','password','password1','contraseña','contrasena','qwerty','qwerty123','abc123','111111','000000','admin','admin123','administrador','iloveyou','entrelibros'];
@@ -75,30 +78,29 @@ function validarClave(p,correo){
   return null;
 }
 
-(async function(){
-  try{
-    const r=await fetch('/api/auth/me',{headers:{Authorization:'Bearer '+obtenerToken()}});
-    const d=await r.json();
-    if(!r.ok || String(d.usuario.rol).toLowerCase()!=='administrador'){
-      location.href='/login.html';
-    }
-  }catch(e){ location.href='/login.html'; }
-})();
-
-document.getElementById('admin-form').addEventListener('submit',async function(e){
+document.getElementById('admin-form').addEventListener('submit', async function(e){
   e.preventDefault();
-  const msg=document.getElementById('admin-message');
-  const correo=document.getElementById('correo').value.trim();
-  const clave=document.getElementById('contraseña').value;
+  const msg = document.getElementById('admin-message');
+  const correo = document.getElementById('correo').value.trim();
+  const clave = document.getElementById('contraseña').value;
 
-  if(clave!==document.getElementById('confirmar').value){ msg.textContent='Las contraseñas no coinciden.'; return; }
-  const errorClave=validarClave(clave,correo);
-  if(errorClave){ msg.textContent=errorClave; return; }
+  if(clave !== document.getElementById('confirmar').value){
+    msg.textContent = 'Las contraseñas no coinciden.';
+    return;
+  }
+  const errorClave = validarClave(clave, correo);
+  if(errorClave){
+    msg.textContent = errorClave;
+    return;
+  }
 
   try{
-    const r=await fetch('/api/auth/crear-admin',{
+    const r = await fetch('/api/auth/crear-admin',{
       method:'POST',
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+obtenerToken()},
+      headers:{
+        'Content-Type':'application/json',
+        Authorization:'Bearer ' + obtenerToken()
+      },
       body:JSON.stringify({
         nombre:document.getElementById('nombre').value,
         apellido:document.getElementById('apellido').value,
@@ -106,10 +108,16 @@ document.getElementById('admin-form').addEventListener('submit',async function(e
         contraseña:clave
       })
     });
-    const d=await r.json();
-    if(r.ok){ msg.textContent='✅ '+d.mensaje; e.target.reset(); }
-    else { msg.textContent=d.error||'No se pudo crear el administrador.'; }
-  }catch(err){ msg.textContent='Error de conexión con el servidor.'; }
+    const d = await r.json();
+    if(r.ok){
+      msg.textContent = '✅ ' + d.mensaje;
+      e.target.reset();
+    } else {
+      msg.textContent = d.error || 'No se pudo crear el administrador.';
+    }
+  }catch(err){
+    msg.textContent = 'Error de conexión con el servidor.';
+  }
 });
 </script>
 <script src="/js/roles.js"></script>

@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Detalle del Libro - Entre Libros</title>
   <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .estrellas-btn { display: flex; gap: .35rem; margin: .4rem 0 .8rem; }
+    .star-pick { font-size: 1.6rem; cursor: pointer; background: none; border: none; color: #cbd5e1; padding: 0; transition: transform .1s; }
+    .star-pick.on { color: #f59e0b; }
+    .star-pick:hover { transform: scale(1.15); }
+    .resena-item { border-top: 1px solid #e2e8f0; padding: .9rem 0; }
+    .resena-item:first-child { border-top: none; }
+    .btn-reserva { background: #d97706 !important; color: #fff !important; }
+    .btn-reserva:hover { background: #b45309 !important; }
+  </style>
 </head>
 <body>
 <div class="app">
@@ -21,6 +31,29 @@
 
   <div id="contenidoLibro"><p class="empty">Cargando detalles del libro...</p></div>
 
+  <!-- Sección de Reseñas y Estrellas -->
+  <div id="seccionResenas" class="card" style="padding: 1.5rem; background:#fff; border-radius:18px; margin-top: 1.2rem;" hidden>
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem;">
+      <h2 style="margin:0; font-size:1.2rem;">⭐ Opiniones de los lectores</h2>
+      <span id="resumenEstrellas" class="badge" style="font-size:.9rem;">Sin calificaciones aún</span>
+    </div>
+
+    <div style="background:#f8fafc; padding:1rem; border-radius:12px; margin-bottom:1.2rem; border:1px solid #e2e8f0;">
+      <b style="font-size:.92rem; color:#0f2540;">Califica este libro (si ya lo pediste en préstamo):</b>
+      <div class="estrellas-btn" id="selectorEstrellas">
+        <button type="button" class="star-pick on" data-v="1">★</button>
+        <button type="button" class="star-pick on" data-v="2">★</button>
+        <button type="button" class="star-pick on" data-v="3">★</button>
+        <button type="button" class="star-pick on" data-v="4">★</button>
+        <button type="button" class="star-pick on" data-v="5">★</button>
+      </div>
+      <textarea id="txtComentario" rows="2" placeholder="Escribe qué te pareció este libro..." style="width:100%; padding:.6rem; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:.6rem;"></textarea>
+      <button type="button" id="btnEnviarResena" class="btn sm">Publicar calificación</button>
+    </div>
+
+    <div id="listaResenas"><p class="empty">Cargando reseñas...</p></div>
+  </div>
+
 </div>
 
 <script>
@@ -28,6 +61,7 @@ const params = new URLSearchParams(location.search);
 const libroId = params.get('id');
 const token = sessionStorage.getItem('authToken');
 let unidadesDisponibles = 0;
+let calificacionSeleccionada = 5;
 
 async function cargarDetalle() {
   if (!libroId) {
@@ -46,6 +80,7 @@ async function cargarDetalle() {
     }
 
     unidadesDisponibles = libro.cantidad_disponible ?? 0;
+    const hayStock = unidadesDisponibles > 0;
 
     document.getElementById('contenidoLibro').innerHTML = `
       <div class="card" style="padding: 1.5rem; background:#fff; border-radius:18px;">
@@ -59,7 +94,7 @@ async function cargarDetalle() {
         </div>
 
         <div class="meta" style="margin-bottom: 1.5rem;">
-          <span class="pill ${unidadesDisponibles > 0 ? '' : 'off'}">${unidadesDisponibles > 0 ? `● Estado: Disponible (${unidadesDisponibles} unidades físicas)` : '● Sin unidades físicas'}</span>
+          <span class="pill ${hayStock ? '' : 'off'}">${hayStock ? `● Estado: Disponible (${unidadesDisponibles} unidades físicas)` : '● Sin unidades físicas (Disponible para reserva en lista de espera)'}</span>
         </div>
 
         <h3>📖 Sinopsis de la obra</h3>
@@ -69,17 +104,24 @@ async function cargarDetalle() {
 
         <div style="background: #f1f5f9; padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem;">
           <h4 style="margin:0 0 .5rem;">📅 Condiciones y Plazos del Préstamo</h4>
-          <p style="margin:0; font-size:.9rem; color:#475569;">Duración estándar de préstamo: <b>14 días hábiles</b>.</p>
+          <p style="margin:0; font-size:.9rem; color:#475569;">Duración estándar de préstamo: <b>14 días calendario</b>. Multa por retraso: <b>$10.000/día</b>.</p>
         </div>
 
-        <!-- Botón siempre habilitado para poder registrar el click -->
-        <button id="btnSolicitar" class="btn block" style="font-size: 1.05rem; padding: 0.9rem;">
-          📦 Solicitar Préstamo Ahora
-        </button>
+        ${hayStock
+          ? `<button id="btnSolicitar" class="btn block" style="font-size: 1.05rem; padding: 0.9rem;">📦 Solicitar Préstamo Ahora</button>`
+          : `<button id="btnReservar" class="btn block btn-reserva" style="font-size: 1.05rem; padding: 0.9rem;">🔖 Sin stock: Unirme a Lista de Espera (Reservar)</button>`
+        }
       </div>
     `;
 
-    document.getElementById('btnSolicitar').addEventListener('click', solicitarPrestamo);
+    if (hayStock) {
+      document.getElementById('btnSolicitar').addEventListener('click', solicitarPrestamo);
+    } else {
+      document.getElementById('btnReservar').addEventListener('click', reservarLibro);
+    }
+
+    document.getElementById('seccionResenas').hidden = false;
+    cargarResenas();
 
   } catch (e) {
     document.getElementById('contenidoLibro').innerHTML = '<p class="empty">Error al cargar la información.</p>';
@@ -87,12 +129,6 @@ async function cargarDetalle() {
 }
 
 async function solicitarPrestamo() {
-  // 1. Verificación local de stock para responder inmediatamente
-  if (unidadesDisponibles < 1) {
-    alert('El libro no cuenta con unidades disponibles');
-    return;
-  }
-
   if (!token) {
     alert('Debes iniciar sesión para realizar la solicitud.');
     location.href = '/login.html';
@@ -115,12 +151,12 @@ async function solicitarPrestamo() {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      alert(data.error || 'El libro no cuenta con unidades disponibles');
+      alert(data.error || 'No se pudo procesar la solicitud.');
       btn.disabled = false;
       return;
     }
 
-    alert('✅ ¡Préstamo solicitado exitosamente!');
+    alert('✅ ¡Solicitud de préstamo enviada! Queda pendiente de aprobación por el administrador.');
     location.href = '/prestamos.html';
 
   } catch (error) {
@@ -128,6 +164,106 @@ async function solicitarPrestamo() {
     btn.disabled = false;
   }
 }
+
+async function reservarLibro() {
+  if (!token) {
+    alert('Debes iniciar sesión para reservar un libro.');
+    location.href = '/login.html';
+    return;
+  }
+
+  const btn = document.getElementById('btnReservar');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/loans/reserve', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ libro_id: parseInt(libroId) })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || 'No se pudo realizar la reserva.');
+      btn.disabled = false;
+      return;
+    }
+
+    alert(data.mensaje);
+    location.href = '/prestamos.html';
+  } catch (e) {
+    alert('Error de conexión.');
+    btn.disabled = false;
+  }
+}
+
+// Lógica de Estrellas y Reseñas
+document.querySelectorAll('.star-pick').forEach(btn => {
+  btn.addEventListener('click', () => {
+    calificacionSeleccionada = parseInt(btn.dataset.v);
+    document.querySelectorAll('.star-pick').forEach(s => {
+      s.classList.toggle('on', parseInt(s.dataset.v) <= calificacionSeleccionada);
+    });
+  });
+});
+
+async function cargarResenas() {
+  try {
+    const res = await fetch(`/api/loans/reviews/${libroId}`);
+    const data = await res.json();
+
+    const resumen = document.getElementById('resumenEstrellas');
+    const lista = document.getElementById('listaResenas');
+
+    if (!data.total) {
+      resumen.textContent = 'Sin calificaciones aún';
+      lista.innerHTML = '<p class="empty">Sé el primero en calificar este libro después de leerlo.</p>';
+      return;
+    }
+
+    resumen.textContent = `★ ${data.promedio} / 5 (${data.total} opinión/es)`;
+    lista.innerHTML = data.resenas.map(r => `
+      <div class="resena-item">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <b>${r.lector}</b>
+          <span style="color:#f59e0b; font-weight:bold;">${'★'.repeat(r.calificacion)}${'☆'.repeat(5 - r.calificacion)}</span>
+        </div>
+        ${r.comentario ? `<p style="margin:.35rem 0 0; color:#475569; font-size:.92rem;">${r.comentario}</p>` : ''}
+      </div>
+    `).join('');
+  } catch (e) {}
+}
+
+document.getElementById('btnEnviarResena').addEventListener('click', async () => {
+  if (!token) {
+    alert('Inicia sesión para calificar el libro.');
+    return;
+  }
+  const comentario = document.getElementById('txtComentario').value.trim();
+  try {
+    const res = await fetch(`/api/loans/reviews/${libroId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ calificacion: calificacionSeleccionada, comentario })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'No se pudo guardar la reseña.');
+      return;
+    }
+    alert(data.mensaje);
+    document.getElementById('txtComentario').value = '';
+    cargarResenas();
+  } catch (e) {
+    alert('Error de conexión.');
+  }
+});
 
 cargarDetalle();
 </script>

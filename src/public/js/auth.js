@@ -24,11 +24,62 @@ function validarClave(p, correo) {
     return null;
 }
 
+// Función auxiliar para enviar credenciales e interactuar con el 2FA
+async function enviarPeticionLogin(correo, contraseña, codigo2FA = null) {
+    const bodyData = { correo, contraseña };
+    if (codigo2FA) {
+        bodyData.codigo2FA = codigo2FA;
+    }
+
+    const respuesta = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(bodyData)
+    });
+
+    const datos = await respuesta.json();
+
+    if (!respuesta.ok) {
+        mostrarMensaje(
+            datos.error || 'No se pudo iniciar sesión.',
+            'auth-error'
+        );
+        return;
+    }
+
+    // Si el backend indica que requiere verificación de 2FA
+    if (datos.requiere2FA) {
+        mostrarMensaje('Código de verificación requerido.', '');
+        
+        const codigoIngresado = prompt('Ingresa el código de 6 dígitos enviado a tu correo/consola para completar el ingreso:');
+        
+        if (!codigoIngresado) {
+            mostrarMensaje('Cancelaste la autenticación de doble factor.', 'auth-error');
+            return;
+        }
+
+        // Reintento de petición incluyendo el codigo2FA ingresado
+        await enviarPeticionLogin(correo, contraseña, codigoIngresado.trim());
+        return;
+    }
+
+    // Login exitoso
+    sessionStorage.setItem('authToken', datos.token);
+    sessionStorage.setItem('usuario', JSON.stringify(datos.usuario));
+
+    mostrarMensaje('Inicio de sesión exitoso. Redirigiendo...', 'auth-success');
+
+    setTimeout(() => {
+        window.location.href = '/inicio.html';
+    }, 600);
+}
+
 const loginForm = document.getElementById('login-form');
 
 if (loginForm) {
     loginForm.addEventListener('submit', async (event) => {
-
         event.preventDefault();
 
         const correo = document.getElementById('correo').value.trim();
@@ -37,36 +88,7 @@ if (loginForm) {
         mostrarMensaje('Iniciando sesión...', '');
 
         try {
-            const respuesta = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    correo,
-                    contraseña
-                })
-            });
-
-            const datos = await respuesta.json();
-
-            if (!respuesta.ok) {
-                mostrarMensaje(
-                    datos.error || 'No se pudo iniciar sesión.',
-                    'auth-error'
-                );
-                return;
-            }
-
-            sessionStorage.setItem('authToken', datos.token);
-            sessionStorage.setItem('usuario', JSON.stringify(datos.usuario));
-
-            mostrarMensaje('Inicio de sesión exitoso. Redirigiendo...', 'auth-success');
-
-            setTimeout(() => {
-                window.location.href = '/inicio.html';
-            }, 600);
-
+            await enviarPeticionLogin(correo, contraseña);
         } catch (error) {
             console.error(error);
             mostrarMensaje('No se pudo conectar con el servidor.', 'auth-error');

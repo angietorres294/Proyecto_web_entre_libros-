@@ -10,11 +10,11 @@
 <div class="app">
 
   <header class="topbar">
-    <a href="/" class="brand">
+    <a href="/inicio.html" class="brand">
       <span class="mark">EL</span>
       <span><b>Entre Libros</b><small>Explorar Catálogo</small></span>
     </a>
-    <div class="top-right"><span class="badge">Lector</span><a href="/login.html" class="avatar">👤</a></div>
+    <div class="top-right"><span class="badge">Lector</span><a href="/inicio.html" class="avatar">👤</a></div>
   </header>
 
   <div class="search big">
@@ -40,14 +40,19 @@
 <nav class="bottom">
   <a href="/catalogo.html" class="on"><span>📖</span>Explorar</a>
   <a href="/prestamos.html"><span>🔖</span>Préstamos</a>
-  <a href="/books.html"><span>🗃️</span>Inventario</a>
-  <a href="/login.html"><span>⚙️</span>Perfil</a>
+  <a href="/pago-multas.html"><span>💳</span>Multas</a>
+  <a href="/inicio.html"><span>⚙️</span>Perfil</a>
 </nav>
 
 <script>
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+function esc(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto ?? '';
+  return div.innerHTML;
+}
 
 let libros = [], filtro = '';
 
@@ -55,7 +60,9 @@ async function cargar() {
   try {
     const res = await fetch('/api/books');
     const datos = await res.json();
-    libros = Array.isArray(datos) ? datos.filter(l => l.activo) : [];
+    libros = Array.isArray(datos)
+      ? datos.filter(l => l.activo !== false && l.activo !== 'false')
+      : [];
     pintar();
   } catch (e) {
     $('lista').innerHTML = '<p class="empty">No se pudo cargar el catálogo.</p>';
@@ -73,7 +80,7 @@ function pintar() {
 }
 
 function tarjeta(l) {
-  const disp = l.cantidad_disponible;
+  const disp = l.cantidad_disponible ?? 0;
   const hue = (l.id * 47) % 360;
   return `
   <article class="book" id="b${l.id}">
@@ -83,17 +90,17 @@ function tarjeta(l) {
         <span class="tagc">${esc(l.categoria ?? 'Sin categoría')}</span>
         <h2>${esc(l.titulo)}</h2>
         <p>${esc(l.autor)}</p>
-        <span class="pill ${disp > 0 ? '' : 'off'}">${disp > 0 ? `● Disponible (${disp} unidades)` : '● Sin unidades'}</span>
+        <span class="pill ${disp > 0 ? '' : 'off'}">${disp > 0 ? `● Disponible (${disp} unidades)` : '● Sin unidades (Disponible para reserva)'}</span>
       </div>
     </div>
     <div class="acts" style="justify-content: flex-end;">
-      <!-- Se quitó 'Ver detalles' y se dejó únicamente 'Detalle del libro' -->
       <a class="btn" href="/libro-detalle.html?id=${l.id}">📖 Detalle del libro</a>
     </div>
   </article>`;
 }
 
-$('q').addEventListener('input', pintar);$('chips').addEventListener('click', e => {
+$('q').addEventListener('input', pintar);
+$('chips').addEventListener('click', e => {
   const c = e.target.closest('.chip'); if (!c) return;
   document.querySelectorAll('.chip').forEach(x => x.classList.remove('on'));
   c.classList.add('on');

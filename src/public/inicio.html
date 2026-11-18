@@ -19,12 +19,20 @@
     .welcome h1{color:#fff;font-size:clamp(1.8rem,5vw,3rem);margin:0 0 .6rem}
     .welcome p{max-width:54ch;margin:0 auto;font-size:1.1rem;color:#DCE8F7}
 
+    .alertas-panel{max-width:1000px;margin:-1.8rem auto 2.8rem;padding:0 1.5rem;display:flex;flex-direction:column;gap:.65rem;position:relative;z-index:2}
+    .alerta-item{background:#fff;border-radius:14px;padding:.9rem 1.2rem;box-shadow:0 6px 20px rgba(15,37,64,.1);display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;border-left:6px solid #0284c7}
+    .alerta-item.danger{border-left-color:#dc2626;background:#fef2f2;color:#991b1b}
+    .alerta-item.warn{border-left-color:#d97706;background:#fffbeb;color:#92400e}
+    .alerta-item.ok{border-left-color:#16a085;background:#ecfdf5;color:#065f46}
+    .alerta-item a{background:#0f2540;color:#fff;text-decoration:none;padding:.45rem .9rem;border-radius:8px;font-size:.85rem;font-weight:700}
+
     .options{max-width:1000px;margin:-2.5rem auto 0;padding:0 1.5rem 3rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem}
-    .opt{display:block;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--line);border-top:6px solid var(--sky);border-radius:18px;padding:1.4rem;box-shadow:0 8px 24px rgba(15,37,64,.08);transition:transform .15s}
+    .opt{display:block;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--line);border-top:6px solid var(--sky);border-radius:18px;padding:1.4rem;box-shadow:0 8px 24px rgba(15,37,64,.08);transition:transform .15s;position:relative}
     .opt:hover{transform:translateY(-3px)}
     .opt .ic{font-size:2rem}
     .opt h2{font-size:1.1rem;margin:.6rem 0 .3rem}
     .opt p{margin:0;font-size:.9rem;color:#4A5B70}
+    .opt .pill-notif{position:absolute;top:1rem;right:1rem;background:#dc2626;color:#fff;font-size:.75rem;font-weight:700;padding:3px 9px;border-radius:999px}
     .opt.c2{border-top-color:var(--teal)}
     .opt.c3{border-top-color:#F5A524}
     .opt.c5{border-top-color:var(--blue)}
@@ -32,6 +40,7 @@
     .opt.c7{border-top-color:#16a085}
     .opt.c8{border-top-color:#d35400}
     .opt.c9{border-top-color:#27ae60}
+    .opt.c-danger{border-top-color:#d9534f}
     .opt[hidden]{display:none}
 
     @media (max-width:520px){.top{padding:.6rem 1rem}.top .logo span{display:none}}
@@ -51,20 +60,30 @@
     <p>Aquí encontrarás los diferentes espacios en los que podemos interactuar. Elige una opción para comenzar.</p>
   </section>
 
+  <!-- Alertas inteligentes en tiempo real -->
+  <div id="panelAlertasLector" class="alertas-panel" hidden></div>
+
   <section class="options">
     <!-- Lectores -->
     <a href="/catalogo.html" class="opt" data-rol="lector">
       <div class="ic">📚</div>
       <h2>Explorar catálogo</h2>
-      <p>Busca por título, autor o temática y mira qué libros están disponibles.</p>
+      <p>Busca por título, autor o temática, mira reseñas y solicita o reserva libros.</p>
     </a>
     <a href="/prestamos.html" class="opt c2" data-rol="lector">
+      <span id="badgePrestamos" class="pill-notif" hidden></span>
       <div class="ic">🔖</div>
-      <h2>Mis préstamos</h2>
-      <p>Consulta tus libros prestados, sus fechas de devolución y devuélvelos.</p>
+      <h2>Mis préstamos y reservas</h2>
+      <p>Consulta tus libros prestados, fechas límite, reservas y comprobantes.</p>
+    </a>
+    <a href="/pago-multas.html" class="opt c-danger" data-rol="lector">
+      <span id="badgeMultas" class="pill-notif" hidden></span>
+      <div class="ic">💳</div>
+      <h2>Pago de multas</h2>
+      <p>Paga tus sanciones en línea y descarga tus comprobantes de pago.</p>
     </a>
 
-    <!-- Administradores -->
+    <!-- Administradores y Superadministrador -->
     <a href="/books.html" class="opt c3" data-rol="admin" hidden>
       <div class="ic">🗃️</div>
       <h2>Administración de libros</h2>
@@ -75,13 +94,19 @@
       <h2>Registro de libro</h2>
       <p>Agrega un libro nuevo al catálogo de la biblioteca.</p>
     </a>
-    
     <a href="/modificar-libro.html" class="opt c5" data-rol="admin" hidden>
-    <div class="ic">✏️</div>
-    <h2>Modificar libro</h2>
-    <p>Elige un libro de la lista y pulsa el lápiz para editar sus datos.</p>
+      <div class="ic">✏️</div>
+      <h2>Modificar libro</h2>
+      <p>Elige un libro de la lista y pulsa el lápiz para editar sus datos.</p>
+    </a>
+    <a href="/solicitud-prestamos.html" class="opt c5" data-rol="admin" hidden>
+      <span id="badgeAdminPrestamos" class="pill-notif" hidden></span>
+      <div class="ic">📩</div>
+      <h2>Solicitud de préstamos</h2>
+      <p>Acepta o rechaza las solicitudes de préstamo realizadas por los lectores.</p>
     </a>
     <a href="/solicitud-devoluciones.html" class="opt c9" data-rol="admin" hidden>
+      <span id="badgeAdminDevoluciones" class="pill-notif" hidden></span>
       <div class="ic">🔄</div>
       <h2>Solicitud de devoluciones</h2>
       <p>Acepta la entrega de libros devueltos por los usuarios.</p>
@@ -89,7 +114,13 @@
     <a href="/reportes-prestamos.html" class="opt c7" data-rol="admin" hidden>
       <div class="ic">📋</div>
       <h2>Reporte de préstamos</h2>
-      <p>Consulta qué usuarios tienen libros asignados y el tiempo de posesión.</p>
+      <p>Consulta qué usuarios tienen libros asignados, multas y desbloquea clientes.</p>
+    </a>
+    <a href="/admin-multas.html" class="opt c-danger" data-rol="admin" hidden>
+      <span id="badgeAdminMultas" class="pill-notif" hidden></span>
+      <div class="ic">💰</div>
+      <h2>Pago de multas</h2>
+      <p>Consulta qué clientes pagaron multas, el monto pagado y el método de pago.</p>
     </a>
     <a href="/reporte-libros-nuevos.html" class="opt c8" data-rol="admin" hidden>
       <div class="ic">📖</div>
@@ -100,6 +131,13 @@
       <div class="ic">👤</div>
       <h2>Crear administrador</h2>
       <p>Registra una nueva cuenta de usuario con privilegios de administración.</p>
+    </a>
+
+    <!-- EXCLUSIVO: Superadministrador -->
+    <a href="/eliminar-admin.html" class="opt c-danger" data-rol="superadmin" hidden>
+      <div class="ic">🚫</div>
+      <h2>Eliminar administrador</h2>
+      <p>Gestión exclusiva para dar de baja cuentas de administradores.</p>
     </a>
   </section>
 
@@ -113,11 +151,182 @@ try { usuario = JSON.parse(sessionStorage.getItem('usuario')) || {}; } catch (e)
 document.getElementById('saludo').textContent = usuario.nombre ? `¡Hola, ${usuario.nombre}!` : '¡Bienvenido!';
 
 const rolUser = String(usuario.rol || '').toLowerCase();
-const esAdmin = rolUser === 'admin' || rolUser === 'administrador';
+const esSuperAdmin = rolUser === 'superadministrador' || rolUser === 'superadmin';
+const esAdmin = rolUser === 'admin' || rolUser === 'administrador' || esSuperAdmin;
 
 document.querySelectorAll('[data-rol]').forEach(el => {
-  el.hidden = (el.dataset.rol === 'admin') !== esAdmin;
+  const rolRequerido = el.dataset.rol;
+  if (rolRequerido === 'lector') el.hidden = esAdmin;
+  else if (rolRequerido === 'admin') el.hidden = !esAdmin;
+  else if (rolRequerido === 'superadmin') el.hidden = !esSuperAdmin;
 });
+
+// Notificaciones en tiempo real para el Administrador (solo 3 módulos clave)
+async function cargarAlertasAdmin() {
+  if (!esAdmin) return;
+  const headers = { Authorization: 'Bearer ' + token };
+  const panel = document.getElementById('panelAlertasLector');
+  const alertas = [];
+
+  try {
+    const [resSolPrestamos, resSolDevoluciones, resReporteLoans, resPagosMultas] = await Promise.all([
+      fetch('/api/loans/pending-requests', { headers }),
+      fetch('/api/loans/pending-returns', { headers }),
+      fetch('/api/reports/loans', { headers }),
+      fetch('/api/loans/fines-payments', { headers })
+    ]);
+
+    const solPrestamos = await resSolPrestamos.json().catch(() => []);
+    if (Array.isArray(solPrestamos) && solPrestamos.length > 0) {
+      const b = document.getElementById('badgeAdminPrestamos');
+      b.textContent = `${solPrestamos.length} pendiente(s)`;
+      b.hidden = false;
+
+      alertas.push(`
+        <div class="alerta-item warn">
+          <span>📩 <b>Solicitudes de préstamo pendientes:</b> Tienes <b>${solPrestamos.length}</b> solicitud(es) esperando aprobación.</span>
+          <a href="/solicitud-prestamos.html">Revisar solicitudes</a>
+        </div>
+      `);
+    }
+
+    const solDevoluciones = await resSolDevoluciones.json().catch(() => []);
+    if (Array.isArray(solDevoluciones) && solDevoluciones.length > 0) {
+      const b = document.getElementById('badgeAdminDevoluciones');
+      b.textContent = `${solDevoluciones.length} pendiente(s)`;
+      b.hidden = false;
+
+      alertas.push(`
+        <div class="alerta-item warn">
+          <span>🔄 <b>Devoluciones por aceptar:</b> Hay <b>${solDevoluciones.length}</b> libro(s) devuelto(s) esperando confirmación.</span>
+          <a href="/solicitud-devoluciones.html">Aceptar devoluciones</a>
+        </div>
+      `);
+    }
+
+    const reporteLoans = await resReporteLoans.json().catch(() => []);
+    const pagosMultas = await resPagosMultas.json().catch(() => []);
+
+    const multasSinPagar = Array.isArray(reporteLoans) ? reporteLoans.filter(r => r.multa_activa) : [];
+    const alertasCambioCuenta = Array.isArray(pagosMultas) ? pagosMultas.filter(p => p.alerta_cambio_cuenta) : [];
+
+    if (multasSinPagar.length > 0 || alertasCambioCuenta.length > 0) {
+      const b = document.getElementById('badgeAdminMultas');
+      b.textContent = multasSinPagar.length > 0
+        ? `${multasSinPagar.length} sin pagar`
+        : `${alertasCambioCuenta.length} aviso(s)`;
+      b.hidden = false;
+    }
+
+    if (multasSinPagar.length > 0) {
+      const totalDeuda = multasSinPagar.reduce((acc, m) => acc + Number(m.multa || 0), 0);
+      alertas.push(`
+        <div class="alerta-item danger">
+          <span>💰 <b>Multas pendientes de pago:</b> Hay <b>${multasSinPagar.length}</b> multa(s) sin pagar ($${totalDeuda.toLocaleString('es-CO')} en mora).</span>
+          <a href="/admin-multas.html">Ver pagos de multas</a>
+        </div>
+      `);
+    }
+
+    if (alertasCambioCuenta.length > 0) {
+      alertas.push(`
+        <div class="alerta-item warn">
+          <span>⚠️ <b>Notificación de cuenta:</b> ${alertasCambioCuenta.length} cliente(s) pagaron multa con una cuenta diferente a la habitual.</span>
+          <a href="/admin-multas.html">Ver motivo</a>
+        </div>
+      `);
+    }
+
+    if (alertas.length > 0) {
+      panel.innerHTML = alertas.join('');
+      panel.hidden = false;
+    }
+  } catch (e) {
+    console.error('Error cargando alertas admin:', e);
+  }
+}
+
+// Cargar notificaciones en tiempo real para lectores
+async function cargarAlertasLector() {
+  if (esAdmin) return;
+  const headers = { Authorization: 'Bearer ' + token };
+  const panel = document.getElementById('panelAlertasLector');
+  const alertas = [];
+
+  try {
+    const [resMultas, resPrestamos, resReservas] = await Promise.all([
+      fetch('/api/loans/my-fines', { headers }),
+      fetch('/api/loans/mine', { headers }),
+      fetch('/api/loans/my-reservations', { headers })
+    ]);
+
+    const multasData = await resMultas.json().catch(() => ({ pendientes: [] }));
+    const pendientes = multasData.pendientes || [];
+    if (pendientes.length > 0) {
+      const total = pendientes.reduce((a, m) => a + Number(m.precio || 0), 0);
+      const badge = document.getElementById('badgeMultas');
+      badge.textContent = `${pendientes.length} pendiente(s)`;
+      badge.hidden = false;
+
+      alertas.push(`
+        <div class="alerta-item danger">
+          <span>🚫 <b>Cuenta bloqueada por multa pendiente ($${total.toLocaleString('es-CO')}):</b> Salda tu sanción para poder pedir nuevos libros.</span>
+          <a href="/pago-multas.html">💳 Pagar ahora</a>
+        </div>
+      `);
+    }
+
+    const prestamos = await resPrestamos.json().catch(() => []);
+    if (Array.isArray(prestamos)) {
+      const activos = prestamos.filter(p => p.estado === 'activo');
+      if (activos.length > 0) {
+        const badgeP = document.getElementById('badgePrestamos');
+        badgeP.textContent = `${activos.length} activo(s)`;
+        badgeP.hidden = false;
+      }
+
+      activos.forEach(p => {
+        if (p.vencido) {
+          alertas.push(`
+            <div class="alerta-item danger">
+              <span>⚠️ <b>¡Préstamo vencido!</b> El libro <i>"${p.titulo}"</i> tiene ${p.dias_retraso} día(s) de retraso ($10.000/día). Devuélvelo cuanto antes.</span>
+              <a href="/prestamos.html">↩ Devolver</a>
+            </div>
+          `);
+        } else if (p.dias_restantes >= 0 && p.dias_restantes <= 3) {
+          alertas.push(`
+            <div class="alerta-item warn">
+              <span>⏰ <b>Recordatorio de entrega:</b> Tu libro <i>"${p.titulo}"</i> vence ${p.dias_restantes === 0 ? 'hoy' : `en ${p.dias_restantes} día(s)`}.</span>
+              <a href="/prestamos.html">Ver préstamo</a>
+            </div>
+          `);
+        }
+      });
+    }
+
+    const reservas = await resReservas.json().catch(() => []);
+    if (Array.isArray(reservas)) {
+      reservas.filter(r => r.estado === 'DISPONIBLE').forEach(r => {
+        alertas.push(`
+          <div class="alerta-item ok">
+            <span>🎉 <b>¡Tu libro reservado ya está disponible!</b> Ya puedes solicitar el préstamo de <i>"${r.titulo}"</i>.</span>
+            <a href="/libro-detalle.html?id=${r.libro_id}">📦 Solicitar ahora</a>
+          </div>
+        `);
+      });
+    }
+
+    if (alertas.length > 0) {
+      panel.innerHTML = alertas.join('');
+      panel.hidden = false;
+    }
+  } catch (e) {
+    console.error('Error cargando alertas:', e);
+  }
+}
+
+cargarAlertasAdmin();
+cargarAlertasLector();
 
 document.getElementById('btnSalir').addEventListener('click', async () => {
   try { await fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + token } }); } catch (e) {}

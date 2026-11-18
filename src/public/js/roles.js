@@ -10,7 +10,8 @@
   try { usuario = JSON.parse(sessionStorage.getItem('usuario')) || {}; } catch (e) {}
 
   const rol = String(usuario.rol || '').toLowerCase();
-  const esAdmin = rol === 'admin' || rol === 'administrador';
+  const esSuperAdmin = rol === 'superadministrador' || rol === 'superadmin';
+  const esAdmin = rol === 'admin' || rol === 'administrador' || esSuperAdmin;
   const acceso = document.body.dataset.acceso;  
 
   if (!token) { 
@@ -23,16 +24,24 @@
     return;
   }
 
+  // Configuración de la barra de navegación para Administradores y Superadministrador
   if (esAdmin) {
-
     const superior = document.querySelector('.navbar nav');
     if (superior) {
-        superior.innerHTML =
-        `<a href="/inicio.html">Inicio</a>
-         <a href="/books.html">Libros</a>
-         <a href="/reports.html" class="${rutaActual.includes('reports') ? 'active' : ''}">Reportes</a>
-         <a href="/crear-admin.html" class="${rutaActual.includes('crear-admin') ? 'active' : ''}">Crear administrador</a>
-         <a href="#" id="salirAdmin">Cerrar sesión</a>`;
+      let opcionesNav = `
+        <a href="/inicio.html">Inicio</a>
+        <a href="/books.html">Libros</a>
+        <a href="/reports.html" class="${rutaActual.includes('reports') ? 'active' : ''}">Reportes</a>
+        <a href="/crear-admin.html" class="${rutaActual.includes('crear-admin') ? 'active' : ''}">Crear administrador</a>
+      `;
+
+      // Opción EXCLUSIVA del Superadministrador en el Nav
+      if (esSuperAdmin) {
+        opcionesNav += `<a href="/eliminar-admin.html" class="${rutaActual.includes('eliminar-admin') ? 'active' : ''}" style="color: #d9534f; font-weight: bold;">Eliminar administrador</a>`;
+      }
+
+      opcionesNav += `<a href="#" id="salirAdmin">Cerrar sesión</a>`;
+      superior.innerHTML = opcionesNav;
 
       const btnSalir = document.getElementById('salirAdmin');
       if (btnSalir) {
@@ -46,6 +55,7 @@
     }
   }
 
+  // Botón "Volver al inicio"
   const encabezado = document.querySelector('.topbar, .navbar');
   if (encabezado && !document.querySelector('.volver-wrap')) {
     const estilo = document.createElement('style');
@@ -61,5 +71,13 @@
     caja.className = 'volver-wrap' + (encabezado.classList.contains('navbar') ? ' ancho' : '');
     caja.innerHTML = '<a href="/inicio.html" class="volver-inicio" aria-label="Volver al inicio"><b>←</b> Volver al inicio</a>';
     encabezado.insertAdjacentElement('afterend', caja);
+  }
+
+  // Validación de acceso a la pantalla eliminar-admin.html
+  if (rutaActual.includes('eliminar-admin')) {
+    if (!esSuperAdmin) {
+      alert('Acceso restringido únicamente para el Superadministrador.');
+      location.replace('/inicio.html');
+    }
   }
 })();

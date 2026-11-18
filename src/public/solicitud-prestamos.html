@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitud de Préstamos - Entre Libros</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .card-req { background: #fff; border-radius: 12px; padding: 1.2rem; margin-bottom: 1rem; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .card-req h3 { margin: 0 0 0.35rem 0; font-size: 1.1rem; color: #0f2540; }
+    .card-req p { margin: 0.15rem 0; font-size: 0.9rem; color: #475569; }
+    .acciones { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+    .btn-aceptar { background: #16a085; color: #fff; border: none; padding: 0.6rem 1.1rem; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    .btn-aceptar:hover { background: #117e68; }
+    .btn-rechazar { background: #dc2626; color: #fff; border: none; padding: 0.6rem 1.1rem; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    .btn-rechazar:hover { background: #b91c1c; }
+  </style>
+</head>
+<body data-acceso="admin">
+<div class="app">
+
+  <header class="topbar">
+    <a href="/inicio.html" class="brand">
+      <span class="mark">EL</span>
+      <span><b>Entre Libros</b><small>Aprobación de Préstamos</small></span>
+    </a>
+    <div class="top-right"><span class="badge">Panel Admin</span></div>
+  </header>
+
+  <div class="pagehead">
+    <div>
+      <h1>Solicitud de Préstamos</h1>
+      <p>Acepta o rechaza las solicitudes de préstamo enviadas por los lectores.</p>
+    </div>
+  </div>
+
+  <p id="msg" class="msg" style="font-weight: bold; margin-bottom: 1rem;"></p>
+  <div id="contenedorSolicitudes"><p class="empty">Cargando solicitudes pendientes...</p></div>
+
+  <p class="alt" style="margin-top: 1.5rem;"><a href="/inicio.html"><b>← Volver al inicio</b></a></p>
+
+</div>
+
+<script>
+const token = sessionStorage.getItem('authToken');
+if (!token) location.href = '/login.html';
+
+const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+
+async function cargarSolicitudes() {
+  try {
+    const res = await fetch('/api/loans/pending-requests', { headers: H });
+    const data = await res.json();
+
+    const cont = document.getElementById('contenedorSolicitudes');
+    if (!Array.isArray(data) || !data.length) {
+      cont.innerHTML = '<p class="empty">No hay solicitudes de préstamo pendientes por aprobar.</p>';
+      return;
+    }
+
+    cont.innerHTML = data.map(s => `
+      <div class="card-req">
+        <div>
+          <h3>📖 ${s.libro_titulo} <small style="color:#64748b;font-weight:normal;">(${s.libro_autor})</small></h3>
+          <p><b>Lector:</b> ${s.usuario_nombre} (${s.usuario_email})</p>
+          <p><b>Fecha de solicitud:</b> ${s.fecha_prestamo} | <b>Unidades disponibles en stock:</b> ${s.unidades_disponibles}</p>
+        </div>
+        <div class="acciones">
+          <button class="btn-aceptar" onclick="responderSolicitud(${s.id}, 'approve-loan', this)">✔ Aceptar préstamo</button>
+          <button class="btn-rechazar" onclick="responderSolicitud(${s.id}, 'reject-loan', this)">✖ No aceptar</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('contenedorSolicitudes').innerHTML = '<p class="empty">Error al cargar las solicitudes.</p>';
+  }
+}
+
+async function responderSolicitud(id, accion, btn) {
+  const esAprobar = accion === 'approve-loan';
+  const pregunta = esAprobar
+    ? '¿Confirmas que deseas ACEPTAR este préstamo y entregar el libro?'
+    : '¿Confirmas que deseas RECHAZAR esta solicitud de préstamo?';
+
+  if (!confirm(pregunta)) return;
+
+  btn.disabled = true;
+  const msg = document.getElementById('msg');
+  msg.textContent = '';
+
+  try {
+    const res = await fetch(`/api/loans/${id}/${accion}`, { method: 'PATCH', headers: H });
+    const data = await res.json();
+
+    if (!res.ok) {
+      msg.textContent = data.error || 'No se pudo procesar la solicitud.';
+      msg.style.color = '#b91c1c';
+      btn.disabled = false;
+      return;
+    }
+
+    msg.textContent = esAprobar ? `✅ ${data.mensaje}` : `🚫 ${data.mensaje}`;
+    msg.style.color = esAprobar ? '#15803d' : '#b91c1c';
+
+    setTimeout(() => {
+      msg.textContent = '';
+      cargarSolicitudes();
+    }, 1200);
+  } catch (e) {
+    msg.textContent = 'Error de conexión con el servidor.';
+    msg.style.color = '#b91c1c';
+    btn.disabled = false;
+  }
+}
+
+cargarSolicitudes();
+</script>
+<script src="/js/roles.js"></script>
+<script src="/js/session.js"></script>
+</body>
+</html>

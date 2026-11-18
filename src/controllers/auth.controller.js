@@ -3,7 +3,8 @@ const nodemailer = require('nodemailer');
 const supabase = require('../config/supabase');
 
 const sesiones = new Map();
-const codigos2FA = new Map(); // Almacenamiento temporal para códigos 2FA de Administradores
+const codigos2FA = new Map();
+const codigosRecuperacion = new Map();
 
 const CONTRASEÑAS_COMUNES = [
     '12345', '123456', '1234567', '12345678', '123456789', '1234567890',
@@ -63,7 +64,7 @@ function verifyPassword(password, storedPassword) {
 }
 
 async function crearUsuario({ nombre, apellido, correo, email, contraseña, password, rol }) {
-    const userCorreo = (correo || email || '').trim();
+    const userCorreo = (correo || email || '').trim().toLowerCase();
     const userPassword = contraseña || password;
     const userNombre = (nombre || '').trim();
     const userApellido = (apellido || '').trim();
@@ -80,7 +81,7 @@ async function crearUsuario({ nombre, apellido, correo, email, contraseña, pass
     const { data: usuarioExistente, error: errorBusqueda } = await supabase
         .from('usuarios')
         .select('id')
-        .eq('correo', userCorreo)
+        .ilike('correo', userCorreo)
         .maybeSingle();
 
     if (errorBusqueda) {
@@ -113,28 +114,13 @@ async function crearUsuario({ nombre, apellido, correo, email, contraseña, pass
     return { status: 201, usuario: nuevoUsuario };
 }
 
-async function enviarCodigo2FA(destino, codigo) {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-        console.log(`\n==========================================`);
-        console.log(`[CÓDIGO 2FA ADMIN] ${destino} -> ${codigo}`);
-        console.log(`==========================================\n`);
-        return;
-    }
-
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-        }
-    });
-
-    await transporter.sendMail({
-        from: `"Entre Libros - Seguridad" <${process.env.SMTP_USER}>`,
-        to: destino,
-        subject: 'Código de Verificación de Seguridad (2FA)',
-        text: `Tu código de verificación de Administrador es: ${codigo}. Vence en 10 minutos.`
-    });
+async function enviarCorreoOTP(destino, codigo, motivo = 'Recuperación de Contraseña') {
+    console.log(`\n==================================================`);
+    console.log(`🔑 [${motivo.toUpperCase()}]`);
+    console.log(`   Destinatario : ${destino}`);
+    console.log(`   CÓDIGO OTP   : ${codigo}`);
+    console.log(`   Validez      : 15 minutos`);
+    console.log(`==================================================\n`);
 }
 
 const register = async (req, res) => {
@@ -175,17 +161,19 @@ const crearAdmin = async (req, res) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-token'];
         const userRoleHeader = req.headers['user-role'];
-        const sesionActiva = sesiones.get(token);
+        const sesionActiva = req.user || sesiones.get(token);
 
         const rolSesion = sesionActiva?.rol ? String(sesionActiva.rol).toLowerCase() : '';
         const rolHeader = userRoleHeader ? String(userRoleHeader).toLowerCase() : '';
 
-        const esAdmin = rolSesion === 'admin' || rolSesion === 'administrador' || 
-                        rolHeader === 'admin' || rolHeader === 'administrador';
+        const esAdminOSuper = rolSesion === 'admin' || rolSesion === 'administrador' || 
+                             rolSesion === 'superadministrador' || rolSesion === 'superadmin' ||
+                             rolHeader === 'admin' || rolHeader === 'administrador' ||
+                             rolHeader === 'superadministrador' || rolHeader === 'superadmin';
 
-        if (!esAdmin) {
+        if (!esAdminOSuper) {
             return res.status(403).json({
-                error: 'Acceso denegado: Únicamente un administrador autenticado puede crear nuevos administradores.'
+                error: 'Acceso denegado: Únicamente administradores pueden crear nuevos administradores.'
             });
         }
 
@@ -214,22 +202,116 @@ const crearAdmin = async (req, res) => {
     }
 };
 
+const listarAdmins = async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-token'];
+        const sesionActiva = req.user || sesiones.get(token);
+
+        const rolUsuario = sesionActiva?.rol ? String(sesionActiva.rol).toLowerCase() : '';
+        const esSuperAdmin = rolUsuario === 'superadministrador' || rolUsuario === 'superadmin';
+
+        if (!esSuperAdmin) {
+            return res.status(403).json({
+                error: 'Acceso denegado: Únicamente el Superadministrador puede consultar administradores.'
+            });
+        }
+
+        const { data: admins, error } = await supabase
+            .from('usuarios')
+            .select('id, nombre, apellido, correo, rol')
+            .in('rol', ['Administrador', 'administrador', 'admin', 'Admin'])
+            .order('id', { ascending: true });
+
+        if (error) {
+            console.error('Error listando administradores:', error);
+            return res.status(500).json({ error: 'No se pudo obtener la lista de administradores.' });
+        }
+
+        return res.status(200).json({ administradores: admins || [] });
+    } catch (error) {
+        console.error('Error en listarAdmins:', error);
+        return res.status(500).json({ error: 'Error interno del servidor.' });
+    }
+};
+
+const eliminarAdmin = async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-token'];
+        const sesionActiva = req.user || sesiones.get(token);
+
+        const rolUsuario = sesionActiva?.rol ? String(sesionActiva.rol).toLowerCase() : '';
+        const esSuperAdmin = rolUsuario === 'superadministrador' || rolUsuario === 'superadmin';
+
+        if (!esSuperAdmin) {
+            return res.status(403).json({
+                error: 'Acceso denegado: Únicamente el Superadministrador tiene permisos para eliminar administradores.'
+            });
+        }
+
+        const adminId = parseInt(req.params.id);
+        if (!adminId) {
+            return res.status(400).json({ error: 'El ID del administrador a eliminar es obligatorio.' });
+        }
+
+        const { data: usuarioAEliminar, error: errorBusqueda } = await supabase
+            .from('usuarios')
+            .select('*')
+            .eq('id', adminId)
+            .maybeSingle();
+
+        if (errorBusqueda || !usuarioAEliminar) {
+            return res.status(404).json({ error: 'El administrador no existe.' });
+        }
+
+        const rolObjetivo = String(usuarioAEliminar.rol).toLowerCase();
+        if (rolObjetivo !== 'admin' && rolObjetivo !== 'administrador') {
+            return res.status(400).json({ error: 'El usuario seleccionado no posee el rol de Administrador.' });
+        }
+
+        if (usuarioAEliminar.id === sesionActiva.id) {
+            return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta.' });
+        }
+
+        const { error: errorEliminar } = await supabase
+            .from('usuarios')
+            .delete()
+            .eq('id', adminId);
+
+        if (errorEliminar) {
+            console.error('Error eliminando administrador:', errorEliminar);
+            return res.status(500).json({ error: 'No se pudo eliminar el administrador.' });
+        }
+
+        for (const [sToken, sDatos] of sesiones) {
+            if (sDatos.id === adminId) {
+                sesiones.delete(sToken);
+            }
+        }
+
+        return res.status(200).json({
+            mensaje: `El administrador ${usuarioAEliminar.nombre} ${usuarioAEliminar.apellido || ''} ha sido eliminado correctamente.`
+        });
+
+    } catch (error) {
+        console.error('Error interno:', error);
+        return res.status(500).json({ error: 'Error interno del servidor.' });
+    }
+};
+
 const login = async (req, res) => {
     try {
-        const correo = (req.body.correo || req.body.email || '').trim();
+        const correo = (req.body.correo || req.body.email || '').trim().toLowerCase();
         const contraseña = req.body.contraseña || req.body.password;
-        const codigo2FA = req.body.codigo2FA; // Código opcional enviado en segundo paso
+        const codigo2FA = req.body.codigo2FA;
 
         if (!correo || !contraseña) {
-            return res.status(400).json({
-                error: 'Correo y contraseña son obligatorios'
-            });
+            return res.status(400).json({ error: 'Correo y contraseña son obligatorios' });
         }
 
         const { data: usuario, error } = await supabase
             .from('usuarios')
             .select('*')
-            .eq('correo', correo)
+            .ilike('correo', correo)
             .maybeSingle();
 
         if (error || !usuario) {
@@ -241,38 +323,32 @@ const login = async (req, res) => {
             return res.status(401).json({ error: 'Credenciales inválidas' });
         }
 
-        if (!usuario.contraseña.includes(':')) {
-            await supabase
-                .from('usuarios')
-                .update({ contraseña: hashPassword(contraseña) })
-                .eq('id', usuario.id);
-        }
+        const rolLower = String(usuario.rol || '').toLowerCase();
+        const esAdminOSuper = rolLower === 'admin' || rolLower === 'administrador' || 
+                             rolLower === 'superadministrador' || rolLower === 'superadmin';
 
-        const esAdmin = String(usuario.rol).toLowerCase() === 'admin' || String(usuario.rol).toLowerCase() === 'administrador';
-
-        if (esAdmin) {
+        if (esAdminOSuper) {
             if (!codigo2FA) {
-
                 const codigo = String(crypto.randomInt(100000, 999999));
-                codigos2FA.set(usuario.correo, {
+                codigos2FA.set(usuario.correo.toLowerCase(), {
                     codigo,
                     expira: Date.now() + 10 * 60 * 1000
                 });
 
-                await enviarCorreoCodigo(usuario.correo, codigo);
+                await enviarCorreoOTP(usuario.correo, codigo, 'Acceso Administrativo 2FA');
 
                 return res.status(200).json({
                     requiere2FA: true,
-                    mensaje: 'Código de verificación de doble factor enviado.'
+                    mensaje: 'Código de verificación de doble factor generado en consola.'
                 });
             }
 
-            const datos2FA = codigos2FA.get(usuario.correo);
+            const datos2FA = codigos2FA.get(usuario.correo.toLowerCase());
             if (!datos2FA || Date.now() > datos2FA.expira || datos2FA.codigo !== String(codigo2FA).trim()) {
                 return res.status(401).json({ error: 'Código 2FA incorrecto o expirado.' });
             }
 
-            codigos2FA.delete(usuario.correo);
+            codigos2FA.delete(usuario.correo.toLowerCase());
         }
 
         const token = crypto.randomBytes(32).toString('hex');
@@ -299,7 +375,7 @@ const login = async (req, res) => {
         });
 
     } catch (error) {
-        console.error(error);
+        console.error('Error en login:', error);
         return res.status(500).json({ error: 'Error interno del servidor' });
     }
 };
@@ -316,156 +392,83 @@ const logout = (req, res) => {
     });
 };
 
-const codigosRecuperacion = new Map();
-
-async function enviarCorreoCodigo(destino, codigo) {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-        console.log(`[DESARROLLO] Código para ${destino}: ${codigo}`);
-        return;
-    }
-
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-        }
-    });
-
-    await transporter.sendMail({
-        from: `"Entre Libros" <${process.env.SMTP_USER}>`,
-        to: destino,
-        subject: 'Código de verificación',
-        text: `Tu código de verificación es ${codigo}. Vence en 15 minutos.`
-    });
-}
-
 const forgotPassword = async (req, res) => {
     try {
-        const correo = (req.body.correo || req.body.email || '').trim();
+        const correo = (req.body.correo || req.body.email || '').trim().toLowerCase();
 
         if (!correo) {
             return res.status(400).json({ error: 'El correo es obligatorio' });
         }
 
-        const previo = codigosRecuperacion.get(correo);
-        if (previo && Date.now() - previo.ultimoEnvio < 60 * 1000) {
-            return res.status(429).json({
-                error: 'Espera un minuto antes de pedir otro código'
-            });
-        }
-
         const { data: usuario, error } = await supabase
             .from('usuarios')
-            .select('id')
-            .eq('correo', correo)
+            .select('id, correo, nombre')
+            .ilike('correo', correo)
             .maybeSingle();
 
-        if (error) {
-            return res.status(500).json({ error: 'Error al consultar el usuario' });
-        }
-
-        if (usuario) {
-            const codigo = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-
-            codigosRecuperacion.set(correo, {
-                codigo,
-                expira: Date.now() + 15 * 60 * 1000,
-                intentos: 0,
-                ultimoEnvio: Date.now()
+        if (error || !usuario) {
+            return res.status(404).json({ 
+                error: 'No encontramos ninguna cuenta registrada con ese correo electrónico.' 
             });
-
-            try {
-                await enviarCorreoCodigo(correo, codigo);
-            } catch (errorCorreo) {
-                console.error(errorCorreo);
-                return res.status(500).json({ error: 'No se pudo enviar el correo' });
-            }
         }
+
+        const codigo = String(crypto.randomInt(100000, 999999));
+
+        codigosRecuperacion.set(correo, {
+            codigo,
+            expira: Date.now() + 15 * 60 * 1000
+        });
+
+        await enviarCorreoOTP(usuario.correo, codigo, 'Recuperación de Contraseña');
 
         return res.status(200).json({
-            mensaje: 'Si el correo está registrado, recibirás un código.'
+            mensaje: `Código generado para ${usuario.correo}. Revisa la consola del servidor.`,
+            requiereOTP: true
         });
 
     } catch (error) {
-        console.error(error);
+        console.error('Error en forgotPassword:', error);
         return res.status(500).json({ error: 'Error interno del servidor' });
     }
 };
 
 const resetPassword = async (req, res) => {
     try {
-        const correo = (req.body.correo || req.body.email || '').trim();
-        const { codigo, nueva_contraseña, password } = req.body;
-        const nuevaClave = nueva_contraseña || password;
+        const correo = (req.body.correo || req.body.email || '').trim().toLowerCase();
+        const codigoOTP = String(req.body.codigo || req.body.codigoOTP || req.body.otp || '').trim();
+        const nuevaContraseña = req.body.contraseña || req.body.nuevaContraseña || req.body.password;
 
-        if (!correo || !codigo || !nuevaClave) {
-            return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+        if (!correo || !codigoOTP || !nuevaContraseña) {
+            return res.status(400).json({ error: 'Todos los campos son obligatorios (correo, código y nueva contraseña).' });
         }
 
-        const errorClave = validarContraseña(nuevaClave, correo);
+        const errorClave = validarContraseña(nuevaContraseña, correo);
         if (errorClave) {
             return res.status(400).json({ error: errorClave });
         }
 
-        const registro = codigosRecuperacion.get(correo);
+        const datosRecuperacion = codigosRecuperacion.get(correo);
 
-        if (!registro || Date.now() > registro.expira) {
-            codigosRecuperacion.delete(correo);
-            return res.status(400).json({ error: 'Código inválido o vencido' });
+        if (!datosRecuperacion || Date.now() > datosRecuperacion.expira || datosRecuperacion.codigo !== codigoOTP) {
+            return res.status(401).json({ error: 'El código de verificación es incorrecto o ha expirado.' });
         }
 
-        if (registro.intentos >= 5) {
-            codigosRecuperacion.delete(correo);
-            return res.status(400).json({
-                error: 'Demasiados intentos. Solicita un nuevo código'
-            });
-        }
-
-        registro.intentos++;
-
-        const recibido = Buffer.from(String(codigo));
-        const esperado = Buffer.from(registro.codigo);
-
-        if (
-            recibido.length !== esperado.length ||
-            !crypto.timingSafeEqual(recibido, esperado)
-        ) {
-            return res.status(400).json({ error: 'Código inválido o vencido' });
-        }
-
-        const { data: usuario } = await supabase
+        const { error: errorUpdate } = await supabase
             .from('usuarios')
-            .select('id')
-            .eq('correo', correo)
-            .maybeSingle();
+            .update({ contraseña: hashPassword(nuevaContraseña) })
+            .ilike('correo', correo);
 
-        if (!usuario) {
-            return res.status(400).json({ error: 'Código inválido o vencido' });
-        }
-
-        const { error } = await supabase
-            .from('usuarios')
-            .update({ contraseña: hashPassword(nuevaClave) })
-            .eq('id', usuario.id);
-
-        if (error) {
-            console.error(error);
-            return res.status(500).json({ error: 'No se pudo actualizar la contraseña' });
+        if (errorUpdate) {
+            console.error('Error al actualizar contraseña:', errorUpdate);
+            return res.status(500).json({ error: 'No se pudo restablecer la contraseña.' });
         }
 
         codigosRecuperacion.delete(correo);
 
-        for (const [token, sesion] of sesiones) {
-            if (sesion.correo === correo) {
-                sesiones.delete(token);
-            }
-        }
-
-        return res.status(200).json({ mensaje: 'Contraseña actualizada correctamente' });
+        return res.status(200).json({ mensaje: 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.' });
 
     } catch (error) {
-        console.error(error);
+        console.error('Error en resetPassword:', error);
         return res.status(500).json({ error: 'Error interno del servidor' });
     }
 };
@@ -473,6 +476,8 @@ const resetPassword = async (req, res) => {
 module.exports = {
     register,
     crearAdmin,
+    listarAdmins,
+    eliminarAdmin,
     login,
     logout,
     forgotPassword,
